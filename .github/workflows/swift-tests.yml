@@ -8,6 +8,7 @@ on:
       - "ios/Sources/**"
       - "ios/Tests/**"
       - "Package.swift"
+      - "spec/**"
       - ".github/workflows/swift-tests.yml"
   pull_request:
     paths:
@@ -15,6 +16,7 @@ on:
       - "ios/Sources/**"
       - "ios/Tests/**"
       - "Package.swift"
+      - "spec/**"
       - ".github/workflows/swift-tests.yml"
   workflow_dispatch:
 
