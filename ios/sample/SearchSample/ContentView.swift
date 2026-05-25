@@ -1,4 +1,4 @@
-import UniversalQuery
+import UnifiedQuery
 import SwiftUI
 
 /// アプリ側で持つ「本体DB」を模した最小レコード。

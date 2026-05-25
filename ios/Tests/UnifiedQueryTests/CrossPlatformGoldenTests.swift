@@ -1,6 +1,6 @@
 import Foundation
 import Testing
-@testable import UniversalQuery
+@testable import UnifiedQuery
 
 /// 設計書 §E「一致を構造的に保証する原則」の §4(ゴールデンテスト)に対応。
 /// 同じ正規化結果と同じヒット ID 列が両 OS の Rust コアから返ることを Swift 側でも縛る。

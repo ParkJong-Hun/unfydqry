@@ -1,10 +1,10 @@
-package com.unimose.universalquery
+package com.unimose.unifiedquery
 
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.Test
-import uniffi.unq.SearchEngine
+import uniffi.unfydqry.SearchEngine
 
 @DisplayName("SearchEngine indexing")
 class SearchEngineIndexingTest {

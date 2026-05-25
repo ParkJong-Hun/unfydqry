@@ -12,7 +12,7 @@ settings:
     SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD: NO
     SUPPORTS_MACCATALYST: NO
 packages:
-  UniversalQuery:
+  UnifiedQuery:
     path: ../../
 targets:
   SearchSample:
@@ -21,8 +21,8 @@ targets:
     sources:
       - path: SearchSample
     dependencies:
-      - package: UniversalQuery
-        product: UniversalQuery
+      - package: UnifiedQuery
+        product: UnifiedQuery
     info:
       path: SearchSample/Info.plist
       properties:

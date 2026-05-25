@@ -1,10 +1,10 @@
-// 検索エンジン(Rust クレート `unq`)の Kotlin バインディングを格納する純 JVM モジュール。
-// iOS 側の Sources/UniversalQuery/ (SwiftPM ライブラリターゲット UniversalQuery) と対をなす。
+// 検索エンジン(Rust クレート `unfydqry`)の Kotlin バインディングを格納する純 JVM モジュール。
+// iOS 側の Sources/UnifiedQuery/ (SwiftPM ライブラリターゲット UnifiedQuery) と対をなす。
 //
 // `:app` はこのモジュールに依存し、Android 上では :app の jniLibs/ に置かれる
-// libunq.so 経由で JNA がロードする。
+// libunfydqry.so 経由で JNA がロードする。
 // このモジュール単体の JVM テストでは、core/target/aarch64-apple-darwin/release/
-// にビルドされた libunq.dylib を `jna.library.path` で参照する。
+// にビルドされた libunfydqry.dylib を `jna.library.path` で参照する。
 plugins {
     id("org.jetbrains.kotlin.jvm")
 }

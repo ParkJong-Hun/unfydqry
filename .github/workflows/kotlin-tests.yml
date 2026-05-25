@@ -1,0 +1,84 @@
+name: Kotlin Tests
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "core/**"
+      - "android/sample/unifiedquery/**"
+      - "android/sample/build.gradle.kts"
+      - "android/sample/settings.gradle.kts"
+      - "android/sample/gradle.properties"
+      - ".github/workflows/kotlin-tests.yml"
+  pull_request:
+    paths:
+      - "core/**"
+      - "android/sample/unifiedquery/**"
+      - "android/sample/build.gradle.kts"
+      - "android/sample/settings.gradle.kts"
+      - "android/sample/gradle.properties"
+      - ".github/workflows/kotlin-tests.yml"
+  workflow_dispatch:
+
+jobs:
+  kotlin-test:
+    name: gradle :unifiedquery:test on macOS arm64
+    runs-on: macos-14
+    timeout-minutes: 30
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-darwin
+
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: core
+
+      - name: Build Rust cdylib for macOS arm64
+        working-directory: core
+        # JNA からロード可能な libunfydqry.dylib が生成される。
+        # build.gradle.kts は target/aarch64-apple-darwin/release/ を jna.library.path に渡している。
+        run: cargo build --release --target aarch64-apple-darwin
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Verify Kotlin binding is in sync with Rust
+        # コミット済みの Kotlin バインディングが、現在の Rust 実装から再生成される
+        # ものと一致することを確かめる(ドリフト検出)。
+        # uniffi-bindgen は cwd で `cargo metadata` を呼ぶので core/ で実行する。
+        working-directory: core
+        run: |
+          set -eux
+          cargo run --bin uniffi-bindgen -- generate \
+            --library target/aarch64-apple-darwin/release/libunfydqry.dylib \
+            --language kotlin \
+            --out-dir generated/kotlin
+          diff -u \
+            ../android/sample/unifiedquery/src/main/kotlin/uniffi/unfydqry/unfydqry.kt \
+            generated/kotlin/uniffi/unfydqry/unfydqry.kt
+
+      - name: gradle :unifiedquery:test
+        working-directory: android/sample
+        run: gradle :unifiedquery:test --info
+
+      - name: Upload test reports on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: kotlin-test-reports
+          path: |
+            android/sample/unifiedquery/build/reports/tests/test/
+            android/sample/unifiedquery/build/test-results/test/
+          if-no-files-found: ignore

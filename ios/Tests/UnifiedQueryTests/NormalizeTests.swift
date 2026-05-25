@@ -1,6 +1,6 @@
 import Foundation
 import Testing
-@testable import UniversalQuery
+@testable import UnifiedQuery
 
 // 設計書 §2 の正規化ポリシーを網羅的に検証する。
 // 軸: 全半角 / 大小 / かな種別 を畳む、濁点・半濁点は区別する。

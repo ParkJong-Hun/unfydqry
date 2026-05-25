@@ -1,4 +1,4 @@
-package com.unimose.universalquery
+package com.unimose.unifiedquery
 
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
@@ -7,7 +7,7 @@ import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.params.ParameterizedTest
 import org.junit.jupiter.params.provider.ValueSource
-import uniffi.unq.normalizeLoose
+import uniffi.unfydqry.normalizeLoose
 
 /**
  * Swift 側 NormalizeTests と同じケースを Kotlin で網羅する。

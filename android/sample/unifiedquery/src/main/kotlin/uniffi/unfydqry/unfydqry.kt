@@ -3,7 +3,7 @@
 
 @file:Suppress("NAME_SHADOWING")
 
-package uniffi.unq
+package uniffi.unfydqry
 
 // Common helper code.
 //
@@ -59,7 +59,7 @@ open class RustBuffer : Structure() {
     companion object {
         internal fun alloc(size: ULong = 0UL) = uniffiRustCall() { status ->
             // Note: need to convert the size to a `Long` value to make this work with JVM.
-            UniffiLib.INSTANCE.ffi_unq_rustbuffer_alloc(size.toLong(), status)
+            UniffiLib.INSTANCE.ffi_unfydqry_rustbuffer_alloc(size.toLong(), status)
         }.also {
             if(it.data == null) {
                throw RuntimeException("RustBuffer.alloc() returned null data pointer (size=${size})")
@@ -75,7 +75,7 @@ open class RustBuffer : Structure() {
         }
 
         internal fun free(buf: RustBuffer.ByValue) = uniffiRustCall() { status ->
-            UniffiLib.INSTANCE.ffi_unq_rustbuffer_free(buf, status)
+            UniffiLib.INSTANCE.ffi_unfydqry_rustbuffer_free(buf, status)
         }
     }
 
@@ -375,7 +375,7 @@ private fun findLibraryName(componentName: String): String {
     if (libOverride != null) {
         return libOverride
     }
-    return "unq"
+    return "unfydqry"
 }
 
 private inline fun <reified Lib : Library> loadIndirect(
@@ -730,7 +730,7 @@ internal interface UniffiForeignFutureCompleteVoid : com.sun.jna.Callback {
 internal interface UniffiLib : Library {
     companion object {
         internal val INSTANCE: UniffiLib by lazy {
-            loadIndirect<UniffiLib>(componentName = "unq")
+            loadIndirect<UniffiLib>(componentName = "unfydqry")
             .also { lib: UniffiLib ->
                 uniffiCheckContractApiVersion(lib)
                 uniffiCheckApiChecksums(lib)
@@ -743,143 +743,143 @@ internal interface UniffiLib : Library {
         }
     }
 
-    fun uniffi_unq_fn_clone_searchengine(`ptr`: Pointer,uniffi_out_err: UniffiRustCallStatus, 
+    fun uniffi_unfydqry_fn_clone_searchengine(`ptr`: Pointer,uniffi_out_err: UniffiRustCallStatus, 
     ): Pointer
-    fun uniffi_unq_fn_free_searchengine(`ptr`: Pointer,uniffi_out_err: UniffiRustCallStatus, 
+    fun uniffi_unfydqry_fn_free_searchengine(`ptr`: Pointer,uniffi_out_err: UniffiRustCallStatus, 
     ): Unit
-    fun uniffi_unq_fn_constructor_searchengine_new(`dbPath`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+    fun uniffi_unfydqry_fn_constructor_searchengine_new(`dbPath`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
     ): Pointer
-    fun uniffi_unq_fn_method_searchengine_index(`ptr`: Pointer,`id`: Long,`text`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+    fun uniffi_unfydqry_fn_method_searchengine_index(`ptr`: Pointer,`id`: Long,`text`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
     ): Unit
-    fun uniffi_unq_fn_method_searchengine_remove(`ptr`: Pointer,`id`: Long,uniffi_out_err: UniffiRustCallStatus, 
+    fun uniffi_unfydqry_fn_method_searchengine_remove(`ptr`: Pointer,`id`: Long,uniffi_out_err: UniffiRustCallStatus, 
     ): Unit
-    fun uniffi_unq_fn_method_searchengine_search(`ptr`: Pointer,`query`: RustBuffer.ByValue,`limit`: Int,uniffi_out_err: UniffiRustCallStatus, 
+    fun uniffi_unfydqry_fn_method_searchengine_search(`ptr`: Pointer,`query`: RustBuffer.ByValue,`limit`: Int,uniffi_out_err: UniffiRustCallStatus, 
     ): RustBuffer.ByValue
-    fun uniffi_unq_fn_func_normalizeloose(`input`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+    fun uniffi_unfydqry_fn_func_normalizeloose(`input`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
     ): RustBuffer.ByValue
-    fun ffi_unq_rustbuffer_alloc(`size`: Long,uniffi_out_err: UniffiRustCallStatus, 
+    fun ffi_unfydqry_rustbuffer_alloc(`size`: Long,uniffi_out_err: UniffiRustCallStatus, 
     ): RustBuffer.ByValue
-    fun ffi_unq_rustbuffer_from_bytes(`bytes`: ForeignBytes.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+    fun ffi_unfydqry_rustbuffer_from_bytes(`bytes`: ForeignBytes.ByValue,uniffi_out_err: UniffiRustCallStatus, 
     ): RustBuffer.ByValue
-    fun ffi_unq_rustbuffer_free(`buf`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+    fun ffi_unfydqry_rustbuffer_free(`buf`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
     ): Unit
-    fun ffi_unq_rustbuffer_reserve(`buf`: RustBuffer.ByValue,`additional`: Long,uniffi_out_err: UniffiRustCallStatus, 
+    fun ffi_unfydqry_rustbuffer_reserve(`buf`: RustBuffer.ByValue,`additional`: Long,uniffi_out_err: UniffiRustCallStatus, 
     ): RustBuffer.ByValue
-    fun ffi_unq_rust_future_poll_u8(`handle`: Long,`callback`: UniffiRustFutureContinuationCallback,`callbackData`: Long,
+    fun ffi_unfydqry_rust_future_poll_u8(`handle`: Long,`callback`: UniffiRustFutureContinuationCallback,`callbackData`: Long,
     ): Unit
-    fun ffi_unq_rust_future_cancel_u8(`handle`: Long,
+    fun ffi_unfydqry_rust_future_cancel_u8(`handle`: Long,
     ): Unit
-    fun ffi_unq_rust_future_free_u8(`handle`: Long,
+    fun ffi_unfydqry_rust_future_free_u8(`handle`: Long,
     ): Unit
-    fun ffi_unq_rust_future_complete_u8(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
+    fun ffi_unfydqry_rust_future_complete_u8(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
     ): Byte
-    fun ffi_unq_rust_future_poll_i8(`handle`: Long,`callback`: UniffiRustFutureContinuationCallback,`callbackData`: Long,
+    fun ffi_unfydqry_rust_future_poll_i8(`handle`: Long,`callback`: UniffiRustFutureContinuationCallback,`callbackData`: Long,
     ): Unit
-    fun ffi_unq_rust_future_cancel_i8(`handle`: Long,
+    fun ffi_unfydqry_rust_future_cancel_i8(`handle`: Long,
     ): Unit
-    fun ffi_unq_rust_future_free_i8(`handle`: Long,
+    fun ffi_unfydqry_rust_future_free_i8(`handle`: Long,
     ): Unit
-    fun ffi_unq_rust_future_complete_i8(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
+    fun ffi_unfydqry_rust_future_complete_i8(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
     ): Byte
-    fun ffi_unq_rust_future_poll_u16(`handle`: Long,`callback`: UniffiRustFutureContinuationCallback,`callbackData`: Long,
+    fun ffi_unfydqry_rust_future_poll_u16(`handle`: Long,`callback`: UniffiRustFutureContinuationCallback,`callbackData`: Long,
     ): Unit
-    fun ffi_unq_rust_future_cancel_u16(`handle`: Long,
+    fun ffi_unfydqry_rust_future_cancel_u16(`handle`: Long,
     ): Unit
-    fun ffi_unq_rust_future_free_u16(`handle`: Long,
+    fun ffi_unfydqry_rust_future_free_u16(`handle`: Long,
     ): Unit
-    fun ffi_unq_rust_future_complete_u16(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
+    fun ffi_unfydqry_rust_future_complete_u16(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
     ): Short
-    fun ffi_unq_rust_future_poll_i16(`handle`: Long,`callback`: UniffiRustFutureContinuationCallback,`callbackData`: Long,
+    fun ffi_unfydqry_rust_future_poll_i16(`handle`: Long,`callback`: UniffiRustFutureContinuationCallback,`callbackData`: Long,
     ): Unit
-    fun ffi_unq_rust_future_cancel_i16(`handle`: Long,
+    fun ffi_unfydqry_rust_future_cancel_i16(`handle`: Long,
     ): Unit
-    fun ffi_unq_rust_future_free_i16(`handle`: Long,
+    fun ffi_unfydqry_rust_future_free_i16(`handle`: Long,
     ): Unit
-    fun ffi_unq_rust_future_complete_i16(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
+    fun ffi_unfydqry_rust_future_complete_i16(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
     ): Short
-    fun ffi_unq_rust_future_poll_u32(`handle`: Long,`callback`: UniffiRustFutureContinuationCallback,`callbackData`: Long,
+    fun ffi_unfydqry_rust_future_poll_u32(`handle`: Long,`callback`: UniffiRustFutureContinuationCallback,`callbackData`: Long,
     ): Unit
-    fun ffi_unq_rust_future_cancel_u32(`handle`: Long,
+    fun ffi_unfydqry_rust_future_cancel_u32(`handle`: Long,
     ): Unit
-    fun ffi_unq_rust_future_free_u32(`handle`: Long,
+    fun ffi_unfydqry_rust_future_free_u32(`handle`: Long,
     ): Unit
-    fun ffi_unq_rust_future_complete_u32(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
+    fun ffi_unfydqry_rust_future_complete_u32(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
     ): Int
-    fun ffi_unq_rust_future_poll_i32(`handle`: Long,`callback`: UniffiRustFutureContinuationCallback,`callbackData`: Long,
+    fun ffi_unfydqry_rust_future_poll_i32(`handle`: Long,`callback`: UniffiRustFutureContinuationCallback,`callbackData`: Long,
     ): Unit
-    fun ffi_unq_rust_future_cancel_i32(`handle`: Long,
+    fun ffi_unfydqry_rust_future_cancel_i32(`handle`: Long,
     ): Unit
-    fun ffi_unq_rust_future_free_i32(`handle`: Long,
+    fun ffi_unfydqry_rust_future_free_i32(`handle`: Long,
     ): Unit
-    fun ffi_unq_rust_future_complete_i32(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
+    fun ffi_unfydqry_rust_future_complete_i32(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
     ): Int
-    fun ffi_unq_rust_future_poll_u64(`handle`: Long,`callback`: UniffiRustFutureContinuationCallback,`callbackData`: Long,
+    fun ffi_unfydqry_rust_future_poll_u64(`handle`: Long,`callback`: UniffiRustFutureContinuationCallback,`callbackData`: Long,
     ): Unit
-    fun ffi_unq_rust_future_cancel_u64(`handle`: Long,
+    fun ffi_unfydqry_rust_future_cancel_u64(`handle`: Long,
     ): Unit
-    fun ffi_unq_rust_future_free_u64(`handle`: Long,
+    fun ffi_unfydqry_rust_future_free_u64(`handle`: Long,
     ): Unit
-    fun ffi_unq_rust_future_complete_u64(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
+    fun ffi_unfydqry_rust_future_complete_u64(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
     ): Long
-    fun ffi_unq_rust_future_poll_i64(`handle`: Long,`callback`: UniffiRustFutureContinuationCallback,`callbackData`: Long,
+    fun ffi_unfydqry_rust_future_poll_i64(`handle`: Long,`callback`: UniffiRustFutureContinuationCallback,`callbackData`: Long,
     ): Unit
-    fun ffi_unq_rust_future_cancel_i64(`handle`: Long,
+    fun ffi_unfydqry_rust_future_cancel_i64(`handle`: Long,
     ): Unit
-    fun ffi_unq_rust_future_free_i64(`handle`: Long,
+    fun ffi_unfydqry_rust_future_free_i64(`handle`: Long,
     ): Unit
-    fun ffi_unq_rust_future_complete_i64(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
+    fun ffi_unfydqry_rust_future_complete_i64(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
     ): Long
-    fun ffi_unq_rust_future_poll_f32(`handle`: Long,`callback`: UniffiRustFutureContinuationCallback,`callbackData`: Long,
+    fun ffi_unfydqry_rust_future_poll_f32(`handle`: Long,`callback`: UniffiRustFutureContinuationCallback,`callbackData`: Long,
     ): Unit
-    fun ffi_unq_rust_future_cancel_f32(`handle`: Long,
+    fun ffi_unfydqry_rust_future_cancel_f32(`handle`: Long,
     ): Unit
-    fun ffi_unq_rust_future_free_f32(`handle`: Long,
+    fun ffi_unfydqry_rust_future_free_f32(`handle`: Long,
     ): Unit
-    fun ffi_unq_rust_future_complete_f32(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
+    fun ffi_unfydqry_rust_future_complete_f32(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
     ): Float
-    fun ffi_unq_rust_future_poll_f64(`handle`: Long,`callback`: UniffiRustFutureContinuationCallback,`callbackData`: Long,
+    fun ffi_unfydqry_rust_future_poll_f64(`handle`: Long,`callback`: UniffiRustFutureContinuationCallback,`callbackData`: Long,
     ): Unit
-    fun ffi_unq_rust_future_cancel_f64(`handle`: Long,
+    fun ffi_unfydqry_rust_future_cancel_f64(`handle`: Long,
     ): Unit
-    fun ffi_unq_rust_future_free_f64(`handle`: Long,
+    fun ffi_unfydqry_rust_future_free_f64(`handle`: Long,
     ): Unit
-    fun ffi_unq_rust_future_complete_f64(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
+    fun ffi_unfydqry_rust_future_complete_f64(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
     ): Double
-    fun ffi_unq_rust_future_poll_pointer(`handle`: Long,`callback`: UniffiRustFutureContinuationCallback,`callbackData`: Long,
+    fun ffi_unfydqry_rust_future_poll_pointer(`handle`: Long,`callback`: UniffiRustFutureContinuationCallback,`callbackData`: Long,
     ): Unit
-    fun ffi_unq_rust_future_cancel_pointer(`handle`: Long,
+    fun ffi_unfydqry_rust_future_cancel_pointer(`handle`: Long,
     ): Unit
-    fun ffi_unq_rust_future_free_pointer(`handle`: Long,
+    fun ffi_unfydqry_rust_future_free_pointer(`handle`: Long,
     ): Unit
-    fun ffi_unq_rust_future_complete_pointer(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
+    fun ffi_unfydqry_rust_future_complete_pointer(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
     ): Pointer
-    fun ffi_unq_rust_future_poll_rust_buffer(`handle`: Long,`callback`: UniffiRustFutureContinuationCallback,`callbackData`: Long,
+    fun ffi_unfydqry_rust_future_poll_rust_buffer(`handle`: Long,`callback`: UniffiRustFutureContinuationCallback,`callbackData`: Long,
     ): Unit
-    fun ffi_unq_rust_future_cancel_rust_buffer(`handle`: Long,
+    fun ffi_unfydqry_rust_future_cancel_rust_buffer(`handle`: Long,
     ): Unit
-    fun ffi_unq_rust_future_free_rust_buffer(`handle`: Long,
+    fun ffi_unfydqry_rust_future_free_rust_buffer(`handle`: Long,
     ): Unit
-    fun ffi_unq_rust_future_complete_rust_buffer(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
+    fun ffi_unfydqry_rust_future_complete_rust_buffer(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
     ): RustBuffer.ByValue
-    fun ffi_unq_rust_future_poll_void(`handle`: Long,`callback`: UniffiRustFutureContinuationCallback,`callbackData`: Long,
+    fun ffi_unfydqry_rust_future_poll_void(`handle`: Long,`callback`: UniffiRustFutureContinuationCallback,`callbackData`: Long,
     ): Unit
-    fun ffi_unq_rust_future_cancel_void(`handle`: Long,
+    fun ffi_unfydqry_rust_future_cancel_void(`handle`: Long,
     ): Unit
-    fun ffi_unq_rust_future_free_void(`handle`: Long,
+    fun ffi_unfydqry_rust_future_free_void(`handle`: Long,
     ): Unit
-    fun ffi_unq_rust_future_complete_void(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
+    fun ffi_unfydqry_rust_future_complete_void(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
     ): Unit
-    fun uniffi_unq_checksum_func_normalizeloose(
+    fun uniffi_unfydqry_checksum_func_normalizeloose(
     ): Short
-    fun uniffi_unq_checksum_method_searchengine_index(
+    fun uniffi_unfydqry_checksum_method_searchengine_index(
     ): Short
-    fun uniffi_unq_checksum_method_searchengine_remove(
+    fun uniffi_unfydqry_checksum_method_searchengine_remove(
     ): Short
-    fun uniffi_unq_checksum_method_searchengine_search(
+    fun uniffi_unfydqry_checksum_method_searchengine_search(
     ): Short
-    fun uniffi_unq_checksum_constructor_searchengine_new(
+    fun uniffi_unfydqry_checksum_constructor_searchengine_new(
     ): Short
-    fun ffi_unq_uniffi_contract_version(
+    fun ffi_unfydqry_uniffi_contract_version(
     ): Int
     
 }
@@ -888,7 +888,7 @@ private fun uniffiCheckContractApiVersion(lib: UniffiLib) {
     // Get the bindings contract version from our ComponentInterface
     val bindings_contract_version = 26
     // Get the scaffolding contract version by calling the into the dylib
-    val scaffolding_contract_version = lib.ffi_unq_uniffi_contract_version()
+    val scaffolding_contract_version = lib.ffi_unfydqry_uniffi_contract_version()
     if (bindings_contract_version != scaffolding_contract_version) {
         throw RuntimeException("UniFFI contract version mismatch: try cleaning and rebuilding your project")
     }
@@ -896,19 +896,19 @@ private fun uniffiCheckContractApiVersion(lib: UniffiLib) {
 
 @Suppress("UNUSED_PARAMETER")
 private fun uniffiCheckApiChecksums(lib: UniffiLib) {
-    if (lib.uniffi_unq_checksum_func_normalizeloose() != 13831.toShort()) {
+    if (lib.uniffi_unfydqry_checksum_func_normalizeloose() != 41915.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if (lib.uniffi_unq_checksum_method_searchengine_index() != 57966.toShort()) {
+    if (lib.uniffi_unfydqry_checksum_method_searchengine_index() != 21713.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if (lib.uniffi_unq_checksum_method_searchengine_remove() != 48939.toShort()) {
+    if (lib.uniffi_unfydqry_checksum_method_searchengine_remove() != 54990.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if (lib.uniffi_unq_checksum_method_searchengine_search() != 50770.toShort()) {
+    if (lib.uniffi_unfydqry_checksum_method_searchengine_search() != 52212.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if (lib.uniffi_unq_checksum_constructor_searchengine_new() != 7259.toShort()) {
+    if (lib.uniffi_unfydqry_checksum_constructor_searchengine_new() != 21833.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
 }
@@ -1280,7 +1280,7 @@ open class SearchEngine: Disposable, AutoCloseable, SearchEngineInterface {
     constructor(`dbPath`: kotlin.String) :
         this(
     uniffiRustCallWithError(SearchException) { _status ->
-    UniffiLib.INSTANCE.uniffi_unq_fn_constructor_searchengine_new(
+    UniffiLib.INSTANCE.uniffi_unfydqry_fn_constructor_searchengine_new(
         FfiConverterString.lower(`dbPath`),_status)
 }
     )
@@ -1336,7 +1336,7 @@ open class SearchEngine: Disposable, AutoCloseable, SearchEngineInterface {
         override fun run() {
             pointer?.let { ptr ->
                 uniffiRustCall { status ->
-                    UniffiLib.INSTANCE.uniffi_unq_fn_free_searchengine(ptr, status)
+                    UniffiLib.INSTANCE.uniffi_unfydqry_fn_free_searchengine(ptr, status)
                 }
             }
         }
@@ -1344,7 +1344,7 @@ open class SearchEngine: Disposable, AutoCloseable, SearchEngineInterface {
 
     fun uniffiClonePointer(): Pointer {
         return uniffiRustCall() { status ->
-            UniffiLib.INSTANCE.uniffi_unq_fn_clone_searchengine(pointer!!, status)
+            UniffiLib.INSTANCE.uniffi_unfydqry_fn_clone_searchengine(pointer!!, status)
         }
     }
 
@@ -1356,7 +1356,7 @@ open class SearchEngine: Disposable, AutoCloseable, SearchEngineInterface {
         = 
     callWithPointer {
     uniffiRustCallWithError(SearchException) { _status ->
-    UniffiLib.INSTANCE.uniffi_unq_fn_method_searchengine_index(
+    UniffiLib.INSTANCE.uniffi_unfydqry_fn_method_searchengine_index(
         it, FfiConverterLong.lower(`id`),FfiConverterString.lower(`text`),_status)
 }
     }
@@ -1368,7 +1368,7 @@ open class SearchEngine: Disposable, AutoCloseable, SearchEngineInterface {
         = 
     callWithPointer {
     uniffiRustCallWithError(SearchException) { _status ->
-    UniffiLib.INSTANCE.uniffi_unq_fn_method_searchengine_remove(
+    UniffiLib.INSTANCE.uniffi_unfydqry_fn_method_searchengine_remove(
         it, FfiConverterLong.lower(`id`),_status)
 }
     }
@@ -1380,7 +1380,7 @@ open class SearchEngine: Disposable, AutoCloseable, SearchEngineInterface {
             return FfiConverterSequenceTypeHit.lift(
     callWithPointer {
     uniffiRustCallWithError(SearchException) { _status ->
-    UniffiLib.INSTANCE.uniffi_unq_fn_method_searchengine_search(
+    UniffiLib.INSTANCE.uniffi_unfydqry_fn_method_searchengine_search(
         it, FfiConverterString.lower(`query`),FfiConverterUInt.lower(`limit`),_status)
 }
     }
@@ -1547,7 +1547,7 @@ public object FfiConverterSequenceTypeHit: FfiConverterRustBuffer<List<Hit>> {
          */ fun `normalizeLoose`(`input`: kotlin.String): kotlin.String {
             return FfiConverterString.lift(
     uniffiRustCall() { _status ->
-    UniffiLib.INSTANCE.uniffi_unq_fn_func_normalizeloose(
+    UniffiLib.INSTANCE.uniffi_unfydqry_fn_func_normalizeloose(
         FfiConverterString.lower(`input`),_status)
 }
     )

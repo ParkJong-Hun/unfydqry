@@ -612,6 +612,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "unfydqry"
+version = "0.1.0"
+dependencies = [
+ "rusqlite",
+ "thiserror",
+ "unicode-normalization",
+ "uniffi",
+]
+
+[[package]]
 name = "unicase"
 version = "2.9.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -748,16 +758,6 @@ dependencies = [
  "uniffi_meta",
  "uniffi_testing",
  "weedle2",
-]
-
-[[package]]
-name = "unq"
-version = "0.1.0"
-dependencies = [
- "rusqlite",
- "thiserror",
- "unicode-normalization",
- "uniffi",
 ]
 
 [[package]]

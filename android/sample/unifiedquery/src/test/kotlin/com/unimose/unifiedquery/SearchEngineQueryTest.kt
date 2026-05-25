@@ -1,4 +1,4 @@
-package com.unimose.universalquery
+package com.unimose.unifiedquery
 
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
@@ -8,7 +8,7 @@ import org.junit.jupiter.api.Assertions.assertNotEquals
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.Test
-import uniffi.unq.SearchEngine
+import uniffi.unfydqry.SearchEngine
 
 @DisplayName("SearchEngine query semantics")
 class SearchEngineQueryTest {

@@ -1,11 +1,11 @@
 [package]
-name = "unq"
+name = "unfydqry"
 version = "0.1.0"
 edition = "2021"
 rust-version = "1.74"
 
 [lib]
-name = "unq"
+name = "unfydqry"
 # rlib: cargo test / 内部利用
 # staticlib: iOS XCFramework
 # cdylib: Android .so

@@ -1,0 +1,90 @@
+name: Swift Tests
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "core/**"
+      - "ios/Sources/**"
+      - "ios/Tests/**"
+      - "Package.swift"
+      - ".github/workflows/swift-tests.yml"
+  pull_request:
+    paths:
+      - "core/**"
+      - "ios/Sources/**"
+      - "ios/Tests/**"
+      - "Package.swift"
+      - ".github/workflows/swift-tests.yml"
+  workflow_dispatch:
+
+jobs:
+  swift-test:
+    name: swift test on macOS arm64
+    runs-on: macos-14
+    timeout-minutes: 30
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Show toolchain versions
+        run: |
+          xcodebuild -version
+          swift --version
+
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-darwin
+
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: core
+
+      - name: Build Rust static lib for macOS arm64
+        working-directory: core
+        run: cargo build --release --target aarch64-apple-darwin
+
+      - name: Regenerate Swift binding and verify in sync
+        # uniffi-bindgen は cwd で `cargo metadata` を呼ぶので core/ に入って実行する。
+        # コミット済みの SearchCore binding が現在の Rust と一致することを担保する。
+        working-directory: core
+        run: |
+          set -eux
+          cargo run --bin uniffi-bindgen -- generate \
+            --library target/aarch64-apple-darwin/release/libunfydqry.dylib \
+            --language swift \
+            --out-dir generated/swift
+          diff -u ../ios/Sources/UnifiedQuery/UnifiedQuery.swift generated/swift/unfydqry.swift
+
+      - name: Assemble minimal XCFramework (macOS slice only)
+        run: |
+          set -eux
+          mkdir -p ios/build/xc/macos/headers
+          cp core/generated/swift/unfydqryFFI.h ios/build/xc/macos/headers/
+          cat > ios/build/xc/macos/headers/module.modulemap <<'EOF'
+          module unfydqryFFI {
+              header "unfydqryFFI.h"
+              export *
+          }
+          EOF
+          cp core/target/aarch64-apple-darwin/release/libunfydqry.a \
+             ios/build/xc/macos/libunfydqry.a
+
+          rm -rf ios/UnifiedQuery.xcframework
+          xcodebuild -create-xcframework \
+            -library ios/build/xc/macos/libunfydqry.a \
+            -headers ios/build/xc/macos/headers \
+            -output ios/UnifiedQuery.xcframework
+
+      - name: swift test
+        run: swift test --parallel
+
+      - name: Upload xcresult on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: swift-test-logs
+          path: .build/**/*.xcresult
+          if-no-files-found: ignore
