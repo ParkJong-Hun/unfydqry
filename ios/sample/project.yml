@@ -11,6 +11,9 @@ settings:
     SUPPORTED_PLATFORMS: "iphoneos iphonesimulator"
     SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD: NO
     SUPPORTS_MACCATALYST: NO
+packages:
+  SearchCore:
+    path: ../
 targets:
   SearchSample:
     type: application
@@ -18,8 +21,8 @@ targets:
     sources:
       - path: SearchSample
     dependencies:
-      - framework: ../SearchCore.xcframework
-        embed: false
+      - package: SearchCore
+        product: SearchCore
     info:
       path: SearchSample/Info.plist
       properties:

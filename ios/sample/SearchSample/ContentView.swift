@@ -1,3 +1,4 @@
+import SearchCore
 import SwiftUI
 
 @MainActor
