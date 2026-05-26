@@ -1,8 +1,6 @@
 # Gradle
-.gradle/
-build/
-*/build/
-sample/*/build/
-local.properties
-*.iml
-.idea/
+**/.gradle/
+**/build/
+**/local.properties
+**/*.iml
+**/.idea/

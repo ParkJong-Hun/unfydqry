@@ -40,17 +40,6 @@ kotlin {
         // iosMain is created automatically by the default hierarchy template.
         // src/iosMain/kotlin/ is picked up by convention.
 
-        commonTest.dependencies {
-            implementation(kotlin("test"))
-        }
-
-        getByName("androidInstrumentedTest") {
-            dependencies {
-                implementation(kotlin("test"))
-                implementation("androidx.test.ext:junit:1.2.1")
-                implementation("androidx.test:runner:1.6.2")
-            }
-        }
     }
 }
 
@@ -60,7 +49,6 @@ android {
 
     defaultConfig {
         minSdk = 24
-        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
     compileOptions {

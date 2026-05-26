@@ -2,9 +2,9 @@
 
 > 🌐 日本語版: [docs/README.ja.md](docs/README.ja.md)
 
-A shared full-text search engine usable from iOS, Android, and Kotlin Multiplatform.
+A shared full-text search engine usable from both iOS (SwiftData) and Android (Room).
 A single search core written in **Rust + UniFFI** is consumed as a SwiftPM package on
-iOS, as a Gradle module on Android, and as a KMP library sharing a common Kotlin API.
+iOS and as a Gradle module on Android.
 
 Design rationale lives in [`docs/cross-platform-search-engine-design.md`](docs/cross-platform-search-engine-design.md) (Japanese).
 
@@ -39,25 +39,17 @@ unfydqry/
 │       ├── settings.gradle.kts  include(":app", ":unifiedquery")
 │       ├── app/                 Compose sample app
 │       └── unifiedquery/        JVM Kotlin library + JUnit 5 (95 cases / 5 suites)
-├── kmp/                         Kotlin Multiplatform library
-│   ├── lib/src/commonMain/       expect SearchEngine + Hit (common API)
-│   ├── lib/src/androidMain/      actual → uniffi.unfydqry.SearchEngine (compile-time dep)
-│   ├── lib/src/iosMain/          actual → @objc Swift bridge → UnifiedQuery (compile-time dep)
-│   ├── ios_bridge/
-│   │   ├── UnfydqryBridge.swift  only file to maintain for iOS bridge
-│   │   └── UnfydqryBridge.h      auto-generated (run generate_bridge_header.sh)
-│   ├── lib/src/commonTest/       11 shared conformance tests
-│   └── sample/androidApp/        KMP Compose sample app
 └── docs/
     ├── README.ja.md
     └── cross-platform-search-engine-design.md
 ```
 
-| | iOS | Android | KMP |
-|---|---|---|---|
-| Library | `import UnifiedQuery` (SwiftPM) | `implementation(project(":unifiedquery"))` | `project(":lib")` |
-| Native binding dep | `UnifiedQuery.SearchEngine` | `uniffi.unfydqry.SearchEngine` | same (via actual) |
-| FFI | XCFramework → Rust | JNA `.so` → Rust | cinterop → ObjC bridge → Rust |
+| | iOS | Android |
+|---|---|---|
+| Library | `import UnifiedQuery` (SwiftPM) | `implementation(project(":unifiedquery"))` |
+| Generated binding | `ios/Sources/UnifiedQuery/UnifiedQuery.swift` | `android/sample/unifiedquery/src/main/kotlin/uniffi/unfydqry/unfydqry.kt` |
+| FFI module | `unfydqryFFI` (via the modulemap inside the XCFramework) | `libunfydqry.so` loaded through JNA |
+| Distributable | `ios/UnifiedQuery.xcframework` (arm64 device + arm64/x86_64 sim + arm64 mac) | `android/jniLibs/{arm64-v8a,armeabi-v7a,x86_64}/libunfydqry.so` |
 
 ## Quick usage
 
@@ -85,20 +77,6 @@ engine.index(1L, "Ｐｙｔｈｏｮ 入門")
 val hits = engine.search("python", 50u)
 // → [Hit(id=1, score=-1.521)]
 ```
-
-### Kotlin Multiplatform (common)
-```kotlin
-import unfydqry.kmp.SearchEngine
-
-val engine = SearchEngine(dbPath)   // identical API on Android and iOS
-engine.index(1L, "Ｐｙｔｈｏｮ 入門")
-val hits = engine.search("python")  // → [Hit(id=1, score=-1.521)]
-engine.close()
-```
-
-`SearchEngine.android.kt` delegates to `uniffi.unfydqry.SearchEngine`; if the Kotlin
-binding's API changes the actual will fail to compile.  On iOS, `UnfydqryBridge.swift`
-wraps `UnifiedQuery.SearchEngine` directly — the same guarantee holds.
 
 ## Build
 
@@ -159,26 +137,6 @@ gradle :app:assembleDebug
 adb install -r app/build/outputs/apk/debug/app-debug.apk
 ```
 
-### Kotlin Multiplatform
-```sh
-# 1. Build the ObjC bridge header from Swift (first time / after API change).
-./kmp/scripts/generate_bridge_header.sh
-
-# 2. Android instrumented tests (device/emulator required)
-cd kmp && ./gradlew :lib:connectedAndroidTest  # 11 cases
-
-# 3. iOS Kotlin/Native framework
-./gradlew :lib:linkDebugFrameworkIosSimulatorArm64
-
-# 4. Android sample app
-./gradlew :sample:androidApp:assembleDebug
-```
-
-When the iOS binding (`UnifiedQuery.SearchEngine`) changes its API:
-1. Update `kmp/ios_bridge/UnfydqryBridge.swift`
-2. Run `./kmp/scripts/generate_bridge_header.sh`
-3. Commit both files — the KMP `iosMain` will surface any compile errors.
-
 ## Tests
 
 | Runtime | Scope | Command | Count |
@@ -186,7 +144,6 @@ When the iOS binding (`UnifiedQuery.SearchEngine`) changes its API:
 | Rust | Internal `normalize` / `engine` logic | `cd core && cargo test --lib` | 15 |
 | Swift Testing | Full public API on macOS / iOS simulator | `swift test` | 61 |
 | JUnit 5 (JVM) | The same scenarios re-validated from Kotlin | `cd android/sample && gradle :unifiedquery:test` | 95 |
-| KMP (Android instrumented) | KMP public API on real Android device | `cd kmp && ./gradlew :lib:connectedAndroidTest` | 11 |
 
 `ios/Tests/UnifiedQueryTests/CrossPlatformGoldenTests.swift` and
 `android/sample/unifiedquery/src/test/kotlin/.../CrossPlatformGoldenTest.kt` share the
@@ -204,8 +161,20 @@ normalization breaks both at once (the "golden tests" approach from §E.4 of the
 | SwiftPM package | `UnifiedQuery` |
 | Android Gradle module | `:unifiedquery` |
 | Kotlin package | `uniffi.unfydqry` |
-| KMP library | `:lib` / `unfydqry.kmp` |
-| KMP iOS bridge | `UnfydqryBridge` (Swift `@objc`) |
+
+## Advanced platform support
+
+Wrappers for additional runtimes are maintained on separate branches and
+documented independently:
+
+| Runtime | Branch | Docs |
+|---|---|---|
+| Kotlin Multiplatform | `feat/kmp` | [`docs/kmp-library.md`](docs/kmp-library.md) |
+| Flutter | `feat/flutter` | [`docs/flutter-plugin.md`](docs/flutter-plugin.md) |
+
+These are **not** included in the main distribution. They require native
+artifacts to be built first and are intended for teams already using those
+runtimes.
 
 ## License
 
