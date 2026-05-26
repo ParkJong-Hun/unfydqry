@@ -169,8 +169,8 @@ documented independently:
 
 | Runtime | Branch | Docs |
 |---|---|---|
-| Kotlin Multiplatform | `feat/kmp` | [`docs/kmp-library.md`](docs/kmp-library.md) |
 | Flutter | `feat/flutter` | [`docs/flutter-plugin.md`](docs/flutter-plugin.md) |
+| Kotlin Multiplatform | `feat/kmp` | [`docs/kmp-library.md`](docs/kmp-library.md) |
 
 These are **not** included in the main distribution. They require native
 artifacts to be built first and are intended for teams already using those

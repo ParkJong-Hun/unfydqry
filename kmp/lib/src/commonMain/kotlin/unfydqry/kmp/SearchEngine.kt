@@ -1,11 +1,5 @@
 package unfydqry.kmp
 
-/** A single result returned by [SearchEngine.search]. */
-data class Hit(val id: Long, val score: Double)
-
-/** Thrown when the native search engine reports an error. */
-class SearchException(message: String) : Exception(message)
-
 /**
  * Cross-platform wrapper around the unfydqry Rust search engine.
  *
