@@ -4,3 +4,9 @@
 **/local.properties
 **/*.iml
 **/.idea/
+
+# Kotlin Language Server / kotlinc output
+**/bin/
+
+# Kotlin daemon cache
+**/.kotlin/

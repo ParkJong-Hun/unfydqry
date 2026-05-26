@@ -1,0 +1,32 @@
+# Android plugin
+android/.gradle/
+android/build/
+android/local.properties
+android/captures/
+android/.cxx/
+
+# Dart / Flutter tooling
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.packages
+pubspec.lock
+.metadata
+
+# Build outputs
+build/
+
+# Example app — platform dirs are flutter-generated; only lib/ is source
+example/.dart_tool/
+example/.flutter-plugins
+example/.flutter-plugins-dependencies
+example/.packages
+example/pubspec.lock
+example/.metadata
+example/build/
+example/android/
+example/ios/
+example/linux/
+example/macos/
+example/web/
+example/windows/
