@@ -1,0 +1,10 @@
+# Kotlin/Native cinterop definition for the UnfydqryBridge Objective-C header.
+#
+# The header is generated from kmp/ios_bridge/UnfydqryBridge.swift by running:
+#   ./kmp/scripts/generate_bridge_header.sh
+#
+# The actual implementation is linked at Xcode build time — no library path
+# is needed here for the cinterop (header-only import).
+
+language = Objective-C
+headers = ../../../ios_bridge/UnfydqryBridge.h
