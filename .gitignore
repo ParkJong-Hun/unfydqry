@@ -34,8 +34,10 @@ core/generated/
 #   Package.swift lives at repo root, iOS sources / tests / xcframework under ios/
 # -----------------------------------------------------------------------------
 
-# XCFramework build artifact (re-creatable via xcodebuild -create-xcframework)
+# XCFramework build artifact (re-creatable via scripts/build-xcframework.sh)
 ios/UnifiedQuery.xcframework/
+ios/UnifiedQuery.xcframework.zip
+ios/UnifiedQuery.xcframework.zip.sha256
 
 # SwiftPM build / resolution artifacts (root from Package.swift)
 /.build/

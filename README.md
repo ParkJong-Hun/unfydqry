@@ -51,6 +51,29 @@ unfydqry/
 | FFI module | `unfydqryFFI` (via the modulemap inside the XCFramework) | `libunfydqry.so` loaded through JNA |
 | Distributable | `ios/UnifiedQuery.xcframework` (arm64 device + arm64/x86_64 sim + arm64 mac) | `android/jniLibs/{arm64-v8a,armeabi-v7a,x86_64}/libunfydqry.so` |
 
+## Install
+
+### iOS (Swift Package Manager)
+Add the package using a tagged release:
+
+```swift
+// Package.swift
+.package(url: "https://github.com/0x0c/unfydqry.git", from: "0.1.0")
+```
+
+The xcframework is **not** committed to Git. Two forms of `Package.swift`
+co-exist:
+- On `main` and in every PR, `Package.swift` references the xcframework by
+  local path (`binaryTarget(path:)`). Local dev and the swift-tests CI build
+  the xcframework into `ios/UnifiedQuery.xcframework` first and then run
+  `swift test` against that local copy.
+- On every release tag, `.github/workflows/release-xcframework.yml` rewrites
+  `Package.swift` to `binaryTarget(url:checksum:)` pointing at the
+  `UnifiedQuery.xcframework.zip` attached to that same GitHub Release, and
+  tags the rewritten commit. SwiftPM consumers resolve the tag and see the
+  URL form. `main` itself is never modified by the release workflow, so
+  SwiftPM's manifest cache on dev machines stays consistent.
+
 ## Quick usage
 
 ### iOS (Swift)
@@ -95,22 +118,12 @@ cargo build --release
 
 ### iOS (SwiftPM + Xcode sample)
 ```sh
-# Build the static libs that feed the XCFramework
-cd core && cargo build --release \
-  --target aarch64-apple-darwin \
-  --target aarch64-apple-ios \
-  --target aarch64-apple-ios-sim \
-  --target x86_64-apple-ios
-# (optional) regenerate the Swift binding
-cargo run --bin uniffi-bindgen -- generate \
-  --library target/aarch64-apple-ios/release/libunfydqry.a \
-  --language swift --out-dir generated/swift
+# Build for all 4 Apple targets, regenerate the Swift binding, assemble the
+# fat XCFramework, zip it for SwiftPM consumption, and print the binaryTarget
+# checksum. Produces ios/UnifiedQuery.xcframework{,.zip,.zip.sha256}.
+bash scripts/build-xcframework.sh
 
-# An end-to-end script that bundles the above into a fat XCFramework
-# would live at scripts/build-xcframework.sh.
-cd ..
-
-# Tests
+# Tests (Package.swift sees the local xcframework and uses it directly)
 swift test                       # 61 cases
 
 # Sample app
@@ -149,6 +162,24 @@ adb install -r app/build/outputs/apk/debug/app-debug.apk
 `android/sample/unifiedquery/src/test/kotlin/.../CrossPlatformGoldenTest.kt` share the
 **same normalization trace table and query matrix**, so any drift in the Rust core's
 normalization breaks both at once (the "golden tests" approach from §E.4 of the design doc).
+
+## Releasing a new iOS xcframework
+
+The xcframework is shipped via GitHub Releases, not committed to Git. To cut a
+new release:
+
+1. Land all intended changes on `main`.
+2. Open Actions → **Release XCFramework** → *Run workflow*, enter a tag like
+   `v0.1.0`.
+3. The workflow runs `scripts/build-xcframework.sh`, rewrites the
+   `// --- BINARY-TARGET START/END ---` block in `Package.swift` to the URL +
+   checksum form on a detached HEAD off of `main`, tags that commit with the
+   version, pushes the tag (but not the branch), and publishes a Release with
+   `UnifiedQuery.xcframework.zip` attached.
+
+The tag commit's `Package.swift` is created by the same run that uploads the
+asset, so SwiftPM consumers never see a tag whose checksum disagrees with the
+attached zip. `main` is left unchanged.
 
 ## Namespace map
 
