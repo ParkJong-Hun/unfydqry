@@ -81,9 +81,9 @@ jobs:
           VERSION: ${{ inputs.version }}
           CHECKSUM: ${{ steps.checksum.outputs.value }}
           REPO: ${{ github.repository }}
+          URL: https://github.com/${{ github.repository }}/releases/download/${{ inputs.version }}/UnifiedQuery.xcframework.zip
         run: |
           set -eux
-          URL="https://github.com/${REPO}/releases/download/${VERSION}/UnifiedQuery.xcframework.zip"
           python3 - <<'PY'
           import os, re, pathlib
           url = os.environ["URL"]
