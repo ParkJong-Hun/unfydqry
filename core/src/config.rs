@@ -10,6 +10,8 @@
 /// `Loose` is the original behaviour (NFKC → katakana→hiragana → lowercase).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, uniffi::Enum)]
 pub enum NormalizeProfile {
+    /// The original behaviour: NFKC, then katakana→hiragana, then lowercase,
+    /// so case, width, and kana variant all fold together.
     Loose,
     /// NFKC + lowercase only; kana variants are kept distinct.
     NfkcCaseFold,
@@ -49,7 +51,9 @@ pub enum SearchStrategy {
 /// The combination the host selects when constructing an engine.
 #[derive(Debug, Clone, uniffi::Record)]
 pub struct EngineConfig {
+    /// How text is normalized at both index and query time.
     pub normalize: NormalizeProfile,
+    /// Which query algorithm `SearchEngine.search` uses.
     pub strategy: SearchStrategy,
 }
 

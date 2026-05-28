@@ -908,19 +908,19 @@ private fun uniffiCheckContractApiVersion(lib: UniffiLib) {
 
 @Suppress("UNUSED_PARAMETER")
 private fun uniffiCheckApiChecksums(lib: UniffiLib) {
-    if (lib.uniffi_unfydqry_checksum_func_normalizeloose() != 44462.toShort()) {
+    if (lib.uniffi_unfydqry_checksum_func_normalizeloose() != 36363.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if (lib.uniffi_unfydqry_checksum_func_normalizewithprofile() != 49347.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if (lib.uniffi_unfydqry_checksum_method_searchengine_index() != 52654.toShort()) {
+    if (lib.uniffi_unfydqry_checksum_method_searchengine_index() != 36421.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if (lib.uniffi_unfydqry_checksum_method_searchengine_remove() != 54990.toShort()) {
+    if (lib.uniffi_unfydqry_checksum_method_searchengine_remove() != 44114.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if (lib.uniffi_unfydqry_checksum_method_searchengine_search() != 52212.toShort()) {
+    if (lib.uniffi_unfydqry_checksum_method_searchengine_search() != 59606.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if (lib.uniffi_unfydqry_checksum_constructor_searchengine_new() != 487.toShort()) {
@@ -1264,20 +1264,54 @@ private class JavaLangRefCleanable(
 ) : UniffiCleaner.Cleanable {
     override fun clean() = cleanable.clean()
 }
+/**
+ * A persistent full-text search index backed by SQLite.
+ *
+ * Create one with `SearchEngine(dbPath:)` for the default behaviour, or
+ * `SearchEngine.withConfig(dbPath:config:)` to choose a normalization profile
+ * and a search strategy. Add or update documents with `index`, drop them with
+ * `remove`, and query with `search`. The instance is safe to share across
+ * threads.
+ */
 public interface SearchEngineInterface {
     
     /**
-     * The host just passes raw text; normalization runs inside the engine.
+     * Adds, or replaces, the document stored under `id`.
+     *
+     * The host passes raw `text`; normalization runs inside the engine, so the
+     * engine's profile is applied identically to indexed text and to queries.
+     * Calling `index` again with an existing `id` overwrites that document.
      */
     fun `index`(`id`: kotlin.Long, `text`: kotlin.String)
     
+    /**
+     * Removes the document stored under `id`. A no-op if no such document
+     * exists.
+     */
     fun `remove`(`id`: kotlin.Long)
     
+    /**
+     * Searches the index and returns at most `limit` hits.
+     *
+     * The `query` is normalized with the engine's profile and then matched
+     * using the engine's strategy. A query that is empty — or only whitespace
+     * once normalized — returns no hits. Ordering and scoring depend on the
+     * strategy (see `Hit.score`).
+     */
     fun `search`(`query`: kotlin.String, `limit`: kotlin.UInt): List<Hit>
     
     companion object
 }
 
+/**
+ * A persistent full-text search index backed by SQLite.
+ *
+ * Create one with `SearchEngine(dbPath:)` for the default behaviour, or
+ * `SearchEngine.withConfig(dbPath:config:)` to choose a normalization profile
+ * and a search strategy. Add or update documents with `index`, drop them with
+ * `remove`, and query with `search`. The instance is safe to share across
+ * threads.
+ */
 open class SearchEngine: Disposable, AutoCloseable, SearchEngineInterface {
 
     constructor(pointer: Pointer) {
@@ -1372,7 +1406,11 @@ open class SearchEngine: Disposable, AutoCloseable, SearchEngineInterface {
 
     
     /**
-     * The host just passes raw text; normalization runs inside the engine.
+     * Adds, or replaces, the document stored under `id`.
+     *
+     * The host passes raw `text`; normalization runs inside the engine, so the
+     * engine's profile is applied identically to indexed text and to queries.
+     * Calling `index` again with an existing `id` overwrites that document.
      */
     @Throws(SearchException::class)override fun `index`(`id`: kotlin.Long, `text`: kotlin.String)
         = 
@@ -1386,6 +1424,10 @@ open class SearchEngine: Disposable, AutoCloseable, SearchEngineInterface {
     
 
     
+    /**
+     * Removes the document stored under `id`. A no-op if no such document
+     * exists.
+     */
     @Throws(SearchException::class)override fun `remove`(`id`: kotlin.Long)
         = 
     callWithPointer {
@@ -1398,6 +1440,14 @@ open class SearchEngine: Disposable, AutoCloseable, SearchEngineInterface {
     
 
     
+    /**
+     * Searches the index and returns at most `limit` hits.
+     *
+     * The `query` is normalized with the engine's profile and then matched
+     * using the engine's strategy. A query that is empty — or only whitespace
+     * once normalized — returns no hits. Ordering and scoring depend on the
+     * strategy (see `Hit.score`).
+     */
     @Throws(SearchException::class)override fun `search`(`query`: kotlin.String, `limit`: kotlin.UInt): List<Hit> {
             return FfiConverterSequenceTypeHit.lift(
     callWithPointer {
@@ -1468,7 +1518,13 @@ public object FfiConverterTypeSearchEngine: FfiConverter<SearchEngine, Pointer> 
  * The combination the host selects when constructing an engine.
  */
 data class EngineConfig (
+    /**
+     * How text is normalized at both index and query time.
+     */
     var `normalize`: NormalizeProfile, 
+    /**
+     * Which query algorithm `SearchEngine.search` uses.
+     */
     var `strategy`: SearchStrategy
 ) {
     
@@ -1499,8 +1555,24 @@ public object FfiConverterTypeEngineConfig: FfiConverterRustBuffer<EngineConfig>
 
 
 
+/**
+ * A single search result: the stable `id` the host indexed under, plus a
+ * relevance `score`.
+ *
+ * The engine returns only ids and scores — never the document text — so the
+ * host re-fetches the full record from its own source-of-truth store.
+ */
 data class Hit (
+    /**
+     * The id the document was indexed under (see `index`).
+     */
     var `id`: kotlin.Long, 
+    /**
+     * Relevance score. For ranked strategies a smaller value is a better
+     * match (bm25 for `trigramBm25`, `1 − similarity` for `fuzzyTrigram`,
+     * edit distance for the Levenshtein strategies). Unranked strategies
+     * (`substring`, `prefix`, `suffix`, `allTerms`) always report `0.0`.
+     */
     var `score`: kotlin.Double
 ) {
     
@@ -1539,6 +1611,10 @@ public object FfiConverterTypeHit: FfiConverterRustBuffer<Hit> {
 
 enum class NormalizeProfile {
     
+    /**
+     * The original behaviour: NFKC, then katakana→hiragana, then lowercase,
+     * so case, width, and kana variant all fold together.
+     */
     LOOSE,
     /**
      * NFKC + lowercase only; kana variants are kept distinct.
@@ -1571,8 +1647,15 @@ public object FfiConverterTypeNormalizeProfile: FfiConverterRustBuffer<Normalize
 
 
 
+/**
+ * An error surfaced across the FFI boundary by `SearchEngine`.
+ */
 sealed class SearchException: kotlin.Exception() {
     
+    /**
+     * An underlying SQLite / storage failure; the associated string is its
+     * message.
+     */
     class Db(
         
         val v1: kotlin.String
@@ -1581,6 +1664,12 @@ sealed class SearchException: kotlin.Exception() {
             get() = "v1=${ v1 }"
     }
     
+    /**
+     * The on-disk index was built with a different normalization profile
+     * than the one requested. Indexed text is profile-specific, so the index
+     * must be rebuilt to change profiles. `stored` is the profile recorded in
+     * the index; `requested` is the one just asked for.
+     */
     class ConfigMismatch(
         
         val `stored`: kotlin.String, 
@@ -1743,8 +1832,12 @@ public object FfiConverterSequenceTypeHit: FfiConverterRustBuffer<List<Hit>> {
     }
 }
         /**
-         * Exposed through FFI so the loose normalized form can be inspected for
-         * testing and debugging. Retained for backward compatibility.
+         * Returns `input` normalized with the default `loose` profile (NFKC, then
+         * katakana→hiragana, then lowercase).
+         *
+         * This is the same normalization the engine applies to indexed text and
+         * queries by default; exposed so a host can preview or debug how a string
+         * will be folded before searching.
          */ fun `normalizeLoose`(`input`: kotlin.String): kotlin.String {
             return FfiConverterString.lift(
     uniffiRustCall() { _status ->

@@ -9,8 +9,12 @@ pub use normalize::{normalize, normalize_loose};
 
 uniffi::setup_scaffolding!();
 
-/// Exposed through FFI so the loose normalized form can be inspected for
-/// testing and debugging. Retained for backward compatibility.
+/// Returns `input` normalized with the default `loose` profile (NFKC, then
+/// katakana→hiragana, then lowercase).
+///
+/// This is the same normalization the engine applies to indexed text and
+/// queries by default; exposed so a host can preview or debug how a string
+/// will be folded before searching.
 #[uniffi::export(name = "normalizeLoose")]
 pub fn normalize_loose_ffi(input: String) -> String {
     normalize_loose(&input)

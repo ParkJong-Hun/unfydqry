@@ -6,16 +6,33 @@ use crate::config::EngineConfig;
 use crate::normalize::{build_normalizer, Normalizer};
 use crate::search::{build_strategy, SearchAlgorithm};
 
+/// A single search result: the stable `id` the host indexed under, plus a
+/// relevance `score`.
+///
+/// The engine returns only ids and scores — never the document text — so the
+/// host re-fetches the full record from its own source-of-truth store.
 #[derive(Debug, Clone, uniffi::Record)]
 pub struct Hit {
+    /// The id the document was indexed under (see `index`).
     pub id: i64,
+    /// Relevance score. For ranked strategies a smaller value is a better
+    /// match (bm25 for `trigramBm25`, `1 − similarity` for `fuzzyTrigram`,
+    /// edit distance for the Levenshtein strategies). Unranked strategies
+    /// (`substring`, `prefix`, `suffix`, `allTerms`) always report `0.0`.
     pub score: f64,
 }
 
+/// An error surfaced across the FFI boundary by `SearchEngine`.
 #[derive(Debug, thiserror::Error, uniffi::Error)]
 pub enum SearchError {
+    /// An underlying SQLite / storage failure; the associated string is its
+    /// message.
     #[error("{0}")]
     Db(String),
+    /// The on-disk index was built with a different normalization profile
+    /// than the one requested. Indexed text is profile-specific, so the index
+    /// must be rebuilt to change profiles. `stored` is the profile recorded in
+    /// the index; `requested` is the one just asked for.
     #[error(
         "index built with normalize profile {stored}, requested {requested}; rebuild required"
     )]
@@ -28,6 +45,13 @@ impl From<rusqlite::Error> for SearchError {
     }
 }
 
+/// A persistent full-text search index backed by SQLite.
+///
+/// Create one with `SearchEngine(dbPath:)` for the default behaviour, or
+/// `SearchEngine.withConfig(dbPath:config:)` to choose a normalization profile
+/// and a search strategy. Add or update documents with `index`, drop them with
+/// `remove`, and query with `search`. The instance is safe to share across
+/// threads.
 #[derive(uniffi::Object)]
 pub struct SearchEngine {
     conn: Mutex<Connection>,
@@ -104,7 +128,11 @@ impl SearchEngine {
         }))
     }
 
-    /// The host just passes raw text; normalization runs inside the engine.
+    /// Adds, or replaces, the document stored under `id`.
+    ///
+    /// The host passes raw `text`; normalization runs inside the engine, so the
+    /// engine's profile is applied identically to indexed text and to queries.
+    /// Calling `index` again with an existing `id` overwrites that document.
     pub fn index(&self, id: i64, text: String) -> Result<(), SearchError> {
         let norm = self.normalizer.normalize(&text);
         let conn = self.conn.lock().unwrap();
@@ -120,6 +148,8 @@ impl SearchEngine {
         Ok(())
     }
 
+    /// Removes the document stored under `id`. A no-op if no such document
+    /// exists.
     pub fn remove(&self, id: i64) -> Result<(), SearchError> {
         let conn = self.conn.lock().unwrap();
         conn.execute("DELETE FROM docs WHERE rowid=?1", params![id])?;
@@ -127,6 +157,12 @@ impl SearchEngine {
         Ok(())
     }
 
+    /// Searches the index and returns at most `limit` hits.
+    ///
+    /// The `query` is normalized with the engine's profile and then matched
+    /// using the engine's strategy. A query that is empty — or only whitespace
+    /// once normalized — returns no hits. Ordering and scoring depend on the
+    /// strategy (see `Hit.score`).
     pub fn search(&self, query: String, limit: u32) -> Result<Vec<Hit>, SearchError> {
         let q = self.normalizer.normalize(&query);
         if q.is_empty() {

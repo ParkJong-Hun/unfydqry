@@ -488,19 +488,53 @@ fileprivate struct FfiConverterString: FfiConverter {
 
 
 
+/**
+ * A persistent full-text search index backed by SQLite.
+ *
+ * Create one with `SearchEngine(dbPath:)` for the default behaviour, or
+ * `SearchEngine.withConfig(dbPath:config:)` to choose a normalization profile
+ * and a search strategy. Add or update documents with `index`, drop them with
+ * `remove`, and query with `search`. The instance is safe to share across
+ * threads.
+ */
 public protocol SearchEngineProtocol : AnyObject {
     
     /**
-     * The host just passes raw text; normalization runs inside the engine.
+     * Adds, or replaces, the document stored under `id`.
+     *
+     * The host passes raw `text`; normalization runs inside the engine, so the
+     * engine's profile is applied identically to indexed text and to queries.
+     * Calling `index` again with an existing `id` overwrites that document.
      */
     func index(id: Int64, text: String) throws 
     
+    /**
+     * Removes the document stored under `id`. A no-op if no such document
+     * exists.
+     */
     func remove(id: Int64) throws 
     
+    /**
+     * Searches the index and returns at most `limit` hits.
+     *
+     * The `query` is normalized with the engine's profile and then matched
+     * using the engine's strategy. A query that is empty — or only whitespace
+     * once normalized — returns no hits. Ordering and scoring depend on the
+     * strategy (see `Hit.score`).
+     */
     func search(query: String, limit: UInt32) throws  -> [Hit]
     
 }
 
+/**
+ * A persistent full-text search index backed by SQLite.
+ *
+ * Create one with `SearchEngine(dbPath:)` for the default behaviour, or
+ * `SearchEngine.withConfig(dbPath:config:)` to choose a normalization profile
+ * and a search strategy. Add or update documents with `index`, drop them with
+ * `remove`, and query with `search`. The instance is safe to share across
+ * threads.
+ */
 open class SearchEngine:
     SearchEngineProtocol {
     fileprivate let pointer: UnsafeMutableRawPointer!
@@ -577,7 +611,11 @@ public static func withConfig(dbPath: String, config: EngineConfig)throws  -> Se
 
     
     /**
-     * The host just passes raw text; normalization runs inside the engine.
+     * Adds, or replaces, the document stored under `id`.
+     *
+     * The host passes raw `text`; normalization runs inside the engine, so the
+     * engine's profile is applied identically to indexed text and to queries.
+     * Calling `index` again with an existing `id` overwrites that document.
      */
 open func index(id: Int64, text: String)throws  {try rustCallWithError(FfiConverterTypeSearchError.lift) {
     uniffi_unfydqry_fn_method_searchengine_index(self.uniffiClonePointer(),
@@ -587,6 +625,10 @@ open func index(id: Int64, text: String)throws  {try rustCallWithError(FfiConver
 }
 }
     
+    /**
+     * Removes the document stored under `id`. A no-op if no such document
+     * exists.
+     */
 open func remove(id: Int64)throws  {try rustCallWithError(FfiConverterTypeSearchError.lift) {
     uniffi_unfydqry_fn_method_searchengine_remove(self.uniffiClonePointer(),
         FfiConverterInt64.lower(id),$0
@@ -594,6 +636,14 @@ open func remove(id: Int64)throws  {try rustCallWithError(FfiConverterTypeSearch
 }
 }
     
+    /**
+     * Searches the index and returns at most `limit` hits.
+     *
+     * The `query` is normalized with the engine's profile and then matched
+     * using the engine's strategy. A query that is empty — or only whitespace
+     * once normalized — returns no hits. Ordering and scoring depend on the
+     * strategy (see `Hit.score`).
+     */
 open func search(query: String, limit: UInt32)throws  -> [Hit] {
     return try  FfiConverterSequenceTypeHit.lift(try rustCallWithError(FfiConverterTypeSearchError.lift) {
     uniffi_unfydqry_fn_method_searchengine_search(self.uniffiClonePointer(),
@@ -662,12 +712,24 @@ public func FfiConverterTypeSearchEngine_lower(_ value: SearchEngine) -> UnsafeM
  * The combination the host selects when constructing an engine.
  */
 public struct EngineConfig {
+    /**
+     * How text is normalized at both index and query time.
+     */
     public var normalize: NormalizeProfile
+    /**
+     * Which query algorithm `SearchEngine.search` uses.
+     */
     public var strategy: SearchStrategy
 
     // Default memberwise initializers are never public by default, so we
     // declare one manually.
-    public init(normalize: NormalizeProfile, strategy: SearchStrategy) {
+    public init(
+        /**
+         * How text is normalized at both index and query time.
+         */normalize: NormalizeProfile, 
+        /**
+         * Which query algorithm `SearchEngine.search` uses.
+         */strategy: SearchStrategy) {
         self.normalize = normalize
         self.strategy = strategy
     }
@@ -727,13 +789,38 @@ public func FfiConverterTypeEngineConfig_lower(_ value: EngineConfig) -> RustBuf
 }
 
 
+/**
+ * A single search result: the stable `id` the host indexed under, plus a
+ * relevance `score`.
+ *
+ * The engine returns only ids and scores — never the document text — so the
+ * host re-fetches the full record from its own source-of-truth store.
+ */
 public struct Hit {
+    /**
+     * The id the document was indexed under (see `index`).
+     */
     public var id: Int64
+    /**
+     * Relevance score. For ranked strategies a smaller value is a better
+     * match (bm25 for `trigramBm25`, `1 − similarity` for `fuzzyTrigram`,
+     * edit distance for the Levenshtein strategies). Unranked strategies
+     * (`substring`, `prefix`, `suffix`, `allTerms`) always report `0.0`.
+     */
     public var score: Double
 
     // Default memberwise initializers are never public by default, so we
     // declare one manually.
-    public init(id: Int64, score: Double) {
+    public init(
+        /**
+         * The id the document was indexed under (see `index`).
+         */id: Int64, 
+        /**
+         * Relevance score. For ranked strategies a smaller value is a better
+         * match (bm25 for `trigramBm25`, `1 − similarity` for `fuzzyTrigram`,
+         * edit distance for the Levenshtein strategies). Unranked strategies
+         * (`substring`, `prefix`, `suffix`, `allTerms`) always report `0.0`.
+         */score: Double) {
         self.id = id
         self.score = score
     }
@@ -802,6 +889,10 @@ public func FfiConverterTypeHit_lower(_ value: Hit) -> RustBuffer {
 
 public enum NormalizeProfile {
     
+    /**
+     * The original behaviour: NFKC, then katakana→hiragana, then lowercase,
+     * so case, width, and kana variant all fold together.
+     */
     case loose
     /**
      * NFKC + lowercase only; kana variants are kept distinct.
@@ -865,12 +956,25 @@ extension NormalizeProfile: Equatable, Hashable {}
 
 
 
+/**
+ * An error surfaced across the FFI boundary by `SearchEngine`.
+ */
 public enum SearchError {
 
     
     
+    /**
+     * An underlying SQLite / storage failure; the associated string is its
+     * message.
+     */
     case Db(String
     )
+    /**
+     * The on-disk index was built with a different normalization profile
+     * than the one requested. Indexed text is profile-specific, so the index
+     * must be rebuilt to change profiles. `stored` is the profile recorded in
+     * the index; `requested` is the one just asked for.
+     */
     case ConfigMismatch(stored: String, requested: String
     )
 }
@@ -1089,8 +1193,12 @@ fileprivate struct FfiConverterSequenceTypeHit: FfiConverterRustBuffer {
     }
 }
 /**
- * Exposed through FFI so the loose normalized form can be inspected for
- * testing and debugging. Retained for backward compatibility.
+ * Returns `input` normalized with the default `loose` profile (NFKC, then
+ * katakana→hiragana, then lowercase).
+ *
+ * This is the same normalization the engine applies to indexed text and
+ * queries by default; exposed so a host can preview or debug how a string
+ * will be folded before searching.
  */
 public func normalizeLoose(input: String) -> String {
     return try!  FfiConverterString.lift(try! rustCall() {
@@ -1126,19 +1234,19 @@ private var initializationResult: InitializationResult = {
     if bindings_contract_version != scaffolding_contract_version {
         return InitializationResult.contractVersionMismatch
     }
-    if (uniffi_unfydqry_checksum_func_normalizeloose() != 44462) {
+    if (uniffi_unfydqry_checksum_func_normalizeloose() != 36363) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_unfydqry_checksum_func_normalizewithprofile() != 49347) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_unfydqry_checksum_method_searchengine_index() != 52654) {
+    if (uniffi_unfydqry_checksum_method_searchengine_index() != 36421) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_unfydqry_checksum_method_searchengine_remove() != 54990) {
+    if (uniffi_unfydqry_checksum_method_searchengine_remove() != 44114) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_unfydqry_checksum_method_searchengine_search() != 52212) {
+    if (uniffi_unfydqry_checksum_method_searchengine_search() != 59606) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_unfydqry_checksum_constructor_searchengine_new() != 487) {
