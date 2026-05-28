@@ -20,6 +20,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
@@ -41,9 +42,11 @@ import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.delay
 import uniffi.unfydqry.EngineOptionsConfig
 import uniffi.unfydqry.NormalizeOptions
+import uniffi.unfydqry.ReindexStatus
 import uniffi.unfydqry.SearchEngine
 import uniffi.unfydqry.SearchStrategy
 import uniffi.unfydqry.normalizeWithOptions
+import uniffi.unfydqry.reindexStatusWithOptions
 
 /// Minimal record standing in for the app's "source-of-truth DB" (equivalent to a
 /// SwiftData / Room entity).
@@ -136,8 +139,13 @@ class MainActivity : ComponentActivity() {
 fun SearchScreen(initialEngine: SearchEngine, store: Map<Long, Record>, dbPath: String) {
     var engine by remember { mutableStateOf(initialEngine) }
     var query by remember { mutableStateOf("") }
+    // `options` is the pending selection the toggles reflect; `applied` is what
+    // the engine/index are built with. Changing options only flags whether a
+    // reindex is needed (detected via reindexStatus) — it does not rebuild.
     var options by remember { mutableStateOf(looseOptions()) }
+    var applied by remember { mutableStateOf(looseOptions()) }
     var strategy by remember { mutableStateOf(SearchStrategy.TRIGRAM_BM25) }
+    var needsReindex by remember { mutableStateOf(false) }
     var status by remember { mutableStateOf("") }
     var showSettings by remember { mutableStateOf(false) }
     val allDocs = remember(store) { store.values.sortedBy { it.id } }
@@ -157,18 +165,34 @@ fun SearchScreen(initialEngine: SearchEngine, store: Map<Long, Record>, dbPath: 
         val records = hits.mapNotNull { store[it.id] }
         results.clear()
         results.addAll(records)
-        status = "hits: ${records.size}  normalized=\"${normalizeWithOptions(query, options)}\""
+        // Results reflect the *applied* normalization until a reindex.
+        status = "hits: ${records.size}  normalized=\"${normalizeWithOptions(query, applied)}\""
     }
 
-    // Changing the steps/strategy regenerates the index in place from the retained
-    // raw text (withOptionsRebuilding), then refreshes results.
-    fun reconfigure(newOptions: NormalizeOptions, newStrategy: SearchStrategy) {
+    // Toggling a step only detects whether a reindex is needed; it does not rebuild.
+    fun setOptions(newOptions: NormalizeOptions) {
+        options = newOptions
+        needsReindex = reindexStatusWithOptions(dbPath, newOptions) == ReindexStatus.CONFIG_CHANGED
+    }
+
+    // Strategy isn't part of the index fingerprint, so apply it immediately by
+    // reopening with the applied options and the new strategy (no reindex).
+    fun applyStrategy(newStrategy: SearchStrategy) {
+        strategy = newStrategy
         val old = engine
-        engine = SearchEngine.withOptionsRebuilding(
-            dbPath,
-            EngineOptionsConfig(newOptions, newStrategy),
-        )
+        engine = SearchEngine.withOptions(dbPath, EngineOptionsConfig(applied, newStrategy))
         old.close()
+        runSearch()
+    }
+
+    // Apply the pending options by regenerating the index in place, then clear the flag.
+    fun doReindex() {
+        val old = engine
+        engine = SearchEngine.withOptionsRebuilding(dbPath, EngineOptionsConfig(options, strategy))
+        old.close()
+        applied = options
+        needsReindex = false
+        status = "インデックスを再生成しました"
         runSearch()
     }
 
@@ -188,6 +212,25 @@ fun SearchScreen(initialEngine: SearchEngine, store: Map<Long, Record>, dbPath: 
         },
     ) { padding ->
         Column(modifier = Modifier.fillMaxSize().padding(padding).padding(horizontal = 16.dp)) {
+            if (needsReindex) {
+                Surface(
+                    color = MaterialTheme.colorScheme.tertiaryContainer,
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Text(
+                            "正規化設定が変更されました。再生成が必要です。",
+                            style = MaterialTheme.typography.bodySmall,
+                            modifier = Modifier.weight(1f),
+                        )
+                        TextButton(onClick = { doReindex() }) { Text("再生成") }
+                    }
+                }
+                Spacer(Modifier.height(8.dp))
+            }
             OutlinedTextField(
                 value = query,
                 onValueChange = { query = it },
@@ -224,13 +267,10 @@ fun SearchScreen(initialEngine: SearchEngine, store: Map<Long, Record>, dbPath: 
             SettingsSheet(
                 options = options,
                 strategy = strategy,
-                onToggle = { newOptions -> options = newOptions; reconfigure(newOptions, strategy) },
-                onStrategy = { newStrategy -> strategy = newStrategy; reconfigure(options, newStrategy) },
-                onReindex = {
-                    val count = engine.reindex()
-                    status = "reindexed $count docs"
-                    runSearch()
-                },
+                needsReindex = needsReindex,
+                onToggle = { newOptions -> setOptions(newOptions) },
+                onStrategy = { newStrategy -> applyStrategy(newStrategy) },
+                onReindex = { doReindex() },
             )
         }
     }
@@ -240,6 +280,7 @@ fun SearchScreen(initialEngine: SearchEngine, store: Map<Long, Record>, dbPath: 
 private fun SettingsSheet(
     options: NormalizeOptions,
     strategy: SearchStrategy,
+    needsReindex: Boolean,
     onToggle: (NormalizeOptions) -> Unit,
     onStrategy: (SearchStrategy) -> Unit,
     onReindex: () -> Unit,
@@ -279,12 +320,18 @@ private fun SettingsSheet(
         }
 
         Spacer(Modifier.height(16.dp))
-        Button(
-            onClick = onReindex,
-            modifier = Modifier.fillMaxWidth(),
-        ) { Text("インデックス再生成") }
+        if (needsReindex) {
+            Button(onClick = onReindex, modifier = Modifier.fillMaxWidth()) {
+                Text("インデックス再生成 (必要)")
+            }
+        } else {
+            OutlinedButton(onClick = onReindex, modifier = Modifier.fillMaxWidth()) {
+                Text("インデックス再生成")
+            }
+        }
         Text(
-            "保存済みの生テキストから現在の設定で再生成します。",
+            if (needsReindex) "正規化設定が変更されています。再生成すると現在の設定が反映されます。"
+            else "保存済みの生テキストから現在の設定で再生成します。",
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.padding(top = 4.dp),

@@ -89,15 +89,24 @@ final class SearchModel: ObservableObject {
     @Published var status: String = ""
     @Published var results: [Record] = []
 
-    /// Toggling any normalization step or strategy rebuilds the engine.
+    /// The *pending* normalization the toggles reflect. Changing it does NOT
+    /// rebuild the index — instead we detect whether a regeneration is needed
+    /// (`needsReindex`) and let the user apply it with the reindex button.
     @Published var options: NormalizeOptions = looseOptions() {
-        didSet { if options != oldValue { reconfigure() } }
+        didSet { if options != oldValue { refreshStatus() } }
     }
+    /// Strategy only affects the query algorithm, never the stored norms, so a
+    /// change applies immediately (no reindex).
     @Published var strategy: StrategyOption = .trigramBm25 {
-        didSet { if strategy != oldValue { reconfigure() } }
+        didSet { if strategy != oldValue { applyStrategy() } }
     }
+    /// True when the pending `options` differ from what the index was built with
+    /// (detected via `reindexStatus`). Surfaced in the UI to prompt a reindex.
+    @Published var needsReindex: Bool = false
 
     private var engine: SearchEngine
+    /// The normalization the engine and on-disk index are currently built with.
+    private var applied: NormalizeOptions = looseOptions()
     private let dbPath: String
     /// The engine returns only IDs and scores, so the host side maps id → Record.
     private var store: [Int64: Record] = [:]
@@ -139,15 +148,25 @@ final class SearchModel: ObservableObject {
         )
     }
 
-    /// Rebuilds the engine for the current options/strategy and refreshes results.
-    private func reconfigure() {
+    /// Detects whether the pending `options` would require regenerating the
+    /// index (the stored documents were normalized under a different profile).
+    private func refreshStatus() {
+        let status = (try? reindexStatusWithOptions(dbPath: dbPath, options: options)) ?? .upToDate
+        needsReindex = (status == .configChanged)
+    }
+
+    /// Applies a strategy change immediately by reopening with the *applied*
+    /// normalization (strategy is not part of the index fingerprint, so this
+    /// never needs a reindex).
+    private func applyStrategy() {
         do {
-            engine = try SearchModel.makeEngine(
-                options: options, strategy: strategy.ffi, dbPath: dbPath
+            engine = try SearchEngine.withOptions(
+                dbPath: dbPath,
+                config: EngineOptionsConfig(normalize: applied, strategy: strategy.ffi)
             )
             search()
         } catch {
-            status = "reconfigure error: \(error)"
+            status = "strategy error: \(error)"
         }
     }
 
@@ -183,13 +202,17 @@ final class SearchModel: ObservableObject {
         status = "indexed \(seed.count) docs"
     }
 
-    /// Explicitly regenerates the index from the retained raw text under the
-    /// current settings (distinct from the automatic rebuild on a settings
-    /// change). Useful after the normalization rules themselves change.
+    /// Applies the pending `options` by regenerating the index in place from the
+    /// retained raw text (`withOptionsRebuilding`), then clears `needsReindex`.
     func reindex() {
         do {
-            let count = try engine.reindex()
-            status = "reindexed \(count) docs"
+            engine = try SearchEngine.withOptionsRebuilding(
+                dbPath: dbPath,
+                config: EngineOptionsConfig(normalize: options, strategy: strategy.ffi)
+            )
+            applied = options
+            needsReindex = false
+            status = "インデックスを再生成しました"
             search()
         } catch {
             status = "reindex error: \(error)"
@@ -206,7 +229,8 @@ final class SearchModel: ObservableObject {
         do {
             let hits = try engine.search(query: query, limit: 50)
             results = hits.compactMap { store[$0.id] }
-            let normalized = normalizeWithOptions(input: query, options: options)
+            // Results reflect the *applied* normalization until a reindex.
+            let normalized = normalizeWithOptions(input: query, options: applied)
             status = "hits: \(results.count)  normalized=\u{0022}\(normalized)\u{0022}"
         } catch {
             status = "error: \(error)"
@@ -222,14 +246,17 @@ final class SearchModel: ObservableObject {
             || env["SEARCH_STRATEGY"] != nil else { return }
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { [weak self] in
             guard let self else { return }
-            if let raw = env["SEARCH_OPTIONS"] {
-                self.options = SearchModel.parseOptions(raw)
-            }
             if let s = env["SEARCH_STRATEGY"].flatMap(StrategyOption.init(rawValue:)) {
                 self.strategy = s
             }
+            if let raw = env["SEARCH_OPTIONS"] {
+                // Sets the pending options only; whether this needs a reindex is
+                // detected and surfaced (banner), matching a real toggle change.
+                self.options = SearchModel.parseOptions(raw)
+            }
             if let auto = env["SEARCH_AUTO_QUERY"] {
                 self.query = auto
+                self.search()
             }
         }
     }
@@ -271,9 +298,25 @@ struct ContentView: View {
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button { showSettings = true } label: {
-                        Image(systemName: "gearshape")
+                        Image(systemName: model.needsReindex
+                            ? "gearshape.badge.exclamationmark" : "gearshape")
                     }
                     .accessibilityLabel("設定")
+                }
+            }
+            .safeAreaInset(edge: .top) {
+                if model.needsReindex {
+                    HStack {
+                        Text("正規化設定が変更されました。インデックス再生成が必要です。")
+                            .font(.caption)
+                        Spacer()
+                        Button("再生成") { model.reindex() }
+                            .font(.caption.bold())
+                    }
+                    .padding(.horizontal)
+                    .padding(.vertical, 8)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(.yellow.opacity(0.25))
                 }
             }
             .safeAreaInset(edge: .bottom) {
@@ -320,9 +363,25 @@ struct SettingsView: View {
                     }
                 }
                 Section {
-                    Button("インデックス再生成") { model.reindex() }
+                    if model.needsReindex {
+                        Button {
+                            model.reindex()
+                        } label: {
+                            Text("インデックス再生成 (必要)").frame(maxWidth: .infinity)
+                        }
+                        .buttonStyle(.borderedProminent)
+                    } else {
+                        Button {
+                            model.reindex()
+                        } label: {
+                            Text("インデックス再生成").frame(maxWidth: .infinity)
+                        }
+                        .buttonStyle(.bordered)
+                    }
                 } footer: {
-                    Text("保存済みの生テキストから現在の設定で再生成します。")
+                    Text(model.needsReindex
+                        ? "正規化設定が変更されています。再生成すると現在の設定が反映されます。"
+                        : "保存済みの生テキストから現在の設定で再生成します。")
                 }
             }
             .navigationTitle("設定")
