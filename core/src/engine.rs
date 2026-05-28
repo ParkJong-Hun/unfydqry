@@ -16,7 +16,9 @@ pub struct Hit {
 pub enum SearchError {
     #[error("{0}")]
     Db(String),
-    #[error("index built with normalize profile {stored}, requested {requested}; rebuild required")]
+    #[error(
+        "index built with normalize profile {stored}, requested {requested}; rebuild required"
+    )]
     ConfigMismatch { stored: String, requested: String },
 }
 
@@ -243,7 +245,12 @@ mod tests {
         });
         e.index(1, "tokyo tower".into()).unwrap();
         e.index(2, "old tokyo".into()).unwrap();
-        let ids: Vec<i64> = e.search("tokyo".into(), 10).unwrap().iter().map(|h| h.id).collect();
+        let ids: Vec<i64> = e
+            .search("tokyo".into(), 10)
+            .unwrap()
+            .iter()
+            .map(|h| h.id)
+            .collect();
         assert_eq!(ids, vec![1]);
     }
 
@@ -255,7 +262,12 @@ mod tests {
         });
         e.index(1, "abcdef".into()).unwrap();
         // 2-char query in the middle: substring strategy must still find it.
-        let ids: Vec<i64> = e.search("cd".into(), 10).unwrap().iter().map(|h| h.id).collect();
+        let ids: Vec<i64> = e
+            .search("cd".into(), 10)
+            .unwrap()
+            .iter()
+            .map(|h| h.id)
+            .collect();
         assert_eq!(ids, vec![1]);
     }
 
