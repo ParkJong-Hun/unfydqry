@@ -13,9 +13,11 @@ import java.nio.file.Files
 import java.util.UUID
 import java.util.stream.Stream
 import uniffi.unfydqry.EngineConfig
+import uniffi.unfydqry.EngineOptionsConfig
 import uniffi.unfydqry.NormalizeProfile
 import uniffi.unfydqry.SearchEngine
 import uniffi.unfydqry.SearchStrategy
+import uniffi.unfydqry.normalizeWithOptions
 import uniffi.unfydqry.normalizeWithProfile
 
 /**
@@ -31,7 +33,7 @@ class SpecDrivenTest {
         @JvmStatic
         fun normalizeCases(): Stream<Arguments> =
             Spec.normalize.cases.stream().map {
-                Arguments.of(it.id, it.description, it.input, it.expected, it.profile)
+                Arguments.of(it.id, it.description, it.input, it.expected, it.profile, it.options)
             }
 
         @JvmStatic
@@ -143,13 +145,27 @@ class SpecDrivenTest {
             else -> error("unknown search strategy \"$key\"")
         }
 
-        /** Opens an in-memory engine for the given optional config. */
-        fun engine(config: SpecConfig?): SearchEngine =
-            if (config == null) SearchEngine(":memory:")
-            else SearchEngine.withConfig(
+        /**
+         * Opens an in-memory engine for the given optional config. A
+         * `config.options` set selects composable normalization (withOptions);
+         * otherwise the named profile path (withConfig) is used.
+         */
+        fun engine(config: SpecConfig?): SearchEngine = when {
+            config?.options != null -> SearchEngine.withOptions(
+                ":memory:",
+                EngineOptionsConfig(config.options.toFfi(), strategy(config.strategy)),
+            )
+            config == null -> SearchEngine(":memory:")
+            else -> SearchEngine.withConfig(
                 ":memory:",
                 EngineConfig(profile(config.normalize), strategy(config.strategy)),
             )
+        }
+
+        /** Normalizes with a record's composable options if present, else its preset. */
+        fun normalized(input: String, options: SpecOptions?, profileKey: String?): String =
+            if (options != null) normalizeWithOptions(input, options.toFfi())
+            else normalizeWithProfile(input, profile(profileKey))
     }
 
     @Test fun `normalize spec version is expected`() {
@@ -162,19 +178,17 @@ class SpecDrivenTest {
 
     @ParameterizedTest(name = "{0}: {1}")
     @MethodSource("normalizeCases")
-    fun `normalize matches spec`(id: String, description: String, input: String, expected: String, profile: String?) {
-        val p = profile(profile)
-        assertEquals(expected, normalizeWithProfile(input, p), "id=$id: $description")
+    fun `normalize matches spec`(id: String, description: String, input: String, expected: String, profile: String?, options: SpecOptions?) {
+        assertEquals(expected, normalized(input, options, profile), "id=$id: $description")
         // Normalization is a fixed point: applying it to its own output is identity.
-        assertEquals(expected, normalizeWithProfile(expected, p), "id=$id not idempotent: $description")
+        assertEquals(expected, normalized(expected, options, profile), "id=$id not idempotent: $description")
     }
 
     @ParameterizedTest(name = "{0}")
     @MethodSource("normalizeInequalities")
     fun `normalize inequality holds`(id: String, ineq: NormalizeInequality) {
-        val p = profile(ineq.profile)
-        val na = normalizeWithProfile(ineq.a, p)
-        val nb = normalizeWithProfile(ineq.b, p)
+        val na = normalized(ineq.a, ineq.options, ineq.profile)
+        val nb = normalized(ineq.b, ineq.options, ineq.profile)
         assertNotEquals(na, nb,
             "id=$id: ${ineq.description}; a=\"${ineq.a}\"→\"$na\" b=\"${ineq.b}\"→\"$nb\"")
     }

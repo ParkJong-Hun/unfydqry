@@ -1,4 +1,5 @@
 import Foundation
+import UnifiedQuery
 
 /// Loads `spec/*.json` once and exposes them via `Spec.normalize` / `Spec.search`.
 /// Walks up from `#filePath` to locate the repo root, so SwiftPM's resources
@@ -7,7 +8,7 @@ import Foundation
 ///
 /// See `spec/README.md` for the spec's intent and schema.
 enum Spec {
-    static let expectedVersion = 2
+    static let expectedVersion = 3
 
     static let normalize: NormalizeSpec = load("normalize")
     static let search: SearchSpecFile = load("search")
@@ -44,13 +45,53 @@ struct NormalizeCase: Decodable, Sendable {
     let source: String?
     /// Optional normalize profile key (e.g. "nfkc_case_fold"); absent means "loose".
     let profile: String?
+    /// Optional composable steps; when present they override `profile`.
+    let options: SpecOptions?
+}
+
+/// The composable normalization steps a spec record may request, mirroring the
+/// FFI `NormalizeOptions`. Absent keys default to false.
+struct SpecOptions: Decodable, Sendable {
+    let lowercase: Bool?
+    let kanaFold: Bool?
+    let foldDiacritics: Bool?
+    let foldChoonpu: Bool?
+    let expandIterationMarks: Bool?
+    let normalizeHyphens: Bool?
+    let stripDigitGrouping: Bool?
+    let collapseWhitespace: Bool?
+    enum CodingKeys: String, CodingKey {
+        case lowercase
+        case kanaFold = "kana_fold"
+        case foldDiacritics = "fold_diacritics"
+        case foldChoonpu = "fold_choonpu"
+        case expandIterationMarks = "expand_iteration_marks"
+        case normalizeHyphens = "normalize_hyphens"
+        case stripDigitGrouping = "strip_digit_grouping"
+        case collapseWhitespace = "collapse_whitespace"
+    }
+
+    var ffi: NormalizeOptions {
+        NormalizeOptions(
+            lowercase: lowercase ?? false,
+            kanaFold: kanaFold ?? false,
+            foldDiacritics: foldDiacritics ?? false,
+            foldChoonpu: foldChoonpu ?? false,
+            expandIterationMarks: expandIterationMarks ?? false,
+            normalizeHyphens: normalizeHyphens ?? false,
+            stripDigitGrouping: stripDigitGrouping ?? false,
+            collapseWhitespace: collapseWhitespace ?? false
+        )
+    }
 }
 
 /// Optional per-scenario engine configuration. Absent fields fall back to the
-/// original behaviour (loose + trigram_bm25).
+/// original behaviour (loose + trigram_bm25). When `options` is present it
+/// selects composable normalization instead of the named `normalize` profile.
 struct SpecConfig: Decodable, Sendable {
     let normalize: String?
     let strategy: String?
+    let options: SpecOptions?
 }
 
 /// A pair that must normalize to *distinct* keys (e.g. dakuten が vs. unvoiced か).
@@ -60,6 +101,8 @@ struct NormalizeInequality: Decodable, Sendable {
     let a: String
     let b: String
     let profile: String?
+    /// Optional composable steps; when present they override `profile`.
+    let options: SpecOptions?
 }
 
 struct NormalizeSpec: Decodable, Sendable {

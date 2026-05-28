@@ -16,21 +16,27 @@ struct SpecDrivenTests {
 
     @Test(arguments: Spec.normalize.cases)
     func normalizeMatchesSpec(_ c: NormalizeCase) {
-        let p = Self.profile(c.profile)
-        let got = normalizeWithProfile(input: c.input, profile: p)
+        let got = Self.normalizedString(c.input, options: c.options, profile: c.profile)
         #expect(got == c.expected, "id=\(c.id): \(c.description)")
         // Normalization is a fixed point: applying it to its own output is identity.
-        let twice = normalizeWithProfile(input: c.expected, profile: p)
+        let twice = Self.normalizedString(c.expected, options: c.options, profile: c.profile)
         #expect(twice == c.expected, "id=\(c.id) not idempotent: \(c.description)")
     }
 
     @Test(arguments: Spec.normalize.inequalities)
     func normalizeInequalityHolds(_ ineq: NormalizeInequality) {
-        let p = Self.profile(ineq.profile)
-        let na = normalizeWithProfile(input: ineq.a, profile: p)
-        let nb = normalizeWithProfile(input: ineq.b, profile: p)
+        let na = Self.normalizedString(ineq.a, options: ineq.options, profile: ineq.profile)
+        let nb = Self.normalizedString(ineq.b, options: ineq.options, profile: ineq.profile)
         #expect(na != nb,
                 "id=\(ineq.id): \(ineq.description); a=\"\(ineq.a)\"→\"\(na)\" b=\"\(ineq.b)\"→\"\(nb)\"")
+    }
+
+    /// Normalizes with a record's composable options if present, else its preset.
+    static func normalizedString(_ input: String, options: SpecOptions?, profile key: String?) -> String {
+        if let options {
+            return normalizeWithOptions(input: input, options: options.ffi)
+        }
+        return normalizeWithProfile(input: input, profile: profile(key))
     }
 
     // MARK: - search.json: scenarios
@@ -185,9 +191,15 @@ struct SpecDrivenTests {
         }
     }
 
-    /// Opens an in-memory engine for the given optional config.
+    /// Opens an in-memory engine for the given optional config. A `config.options`
+    /// set selects composable normalization (withOptions); otherwise the named
+    /// profile path (withConfig) is used.
     static func engine(for config: SpecConfig?) throws -> SearchEngine {
         guard let config else { return try SearchEngine(dbPath: ":memory:") }
+        if let options = config.options {
+            let ec = EngineOptionsConfig(normalize: options.ffi, strategy: strategy(config.strategy))
+            return try SearchEngine.withOptions(dbPath: ":memory:", config: ec)
+        }
         let ec = EngineConfig(normalize: profile(config.normalize),
                               strategy: strategy(config.strategy))
         return try SearchEngine.withConfig(dbPath: ":memory:", config: ec)

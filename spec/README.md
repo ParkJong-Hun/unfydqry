@@ -33,7 +33,7 @@ ignores the fields keep working without a `version` bump.
 
 ## Common conventions
 
-Every file has a top-level `version` integer (currently **2** for all files).
+Every file has a top-level `version` integer (currently **3** for all files).
 Loaders should refuse to run if this doesn't match the version they were written
 for — that way a future breaking schema change can't silently make tests pass by
 loading nothing.
@@ -56,7 +56,7 @@ Every individual record carries an `id` (or `query` for matrix entries) and a
 
 ```jsonc
 {
-  "version": 2,
+  "version": 3,
   "cases": [
     {
       "id": "...",
@@ -64,6 +64,7 @@ Every individual record carries an `id` (or `query` for matrix entries) and a
       "input": "<string>",
       "expected": "<string>",
       "profile": "<optional profile key>",
+      "options": { "fold_choonpu": true, ... },  // optional; see below
       "source": "<optional citation>"
     }
   ],
@@ -73,30 +74,43 @@ Every individual record carries an `id` (or `query` for matrix entries) and a
       "description": "...",
       "a": "<string>",
       "b": "<string>",
-      "profile": "<optional profile key>"
+      "profile": "<optional profile key>",
+      "options": { ... }                          // optional; see below
     }
   ]
 }
 ```
 
+A record may select normalization in one of two ways:
+- `profile` — a named preset (`loose` (default) or `nfkc_case_fold`).
+- `options` — a composable [`NormalizeOptions`](../README.md#configuring-behaviour) set
+  (any of the boolean keys `lowercase`, `kana_fold`, `fold_diacritics`,
+  `fold_choonpu`, `expand_iteration_marks`, `normalize_hyphens`,
+  `strip_digit_grouping`, `collapse_whitespace`; absent keys default to false).
+  NFKC is always applied as the foundation. When `options` is present it takes
+  precedence and the loader calls `normalizeWithOptions`.
+
 Loader pseudocode:
 
-- For each `cases` entry: assert `normalizeWithProfile(input, profile ?? loose) == expected`,
-  and additionally assert **idempotency** — `normalizeWithProfile(expected, profile) == expected`.
-  (Normalization is a fixed point, so applying it to its own output changes nothing.)
-- For each `inequalities` entry: assert `normalizeWithProfile(a, profile ?? loose) != normalizeWithProfile(b, profile ?? loose)`
-  — pins distinctions that must *not* fold together (e.g. dakuten が vs. unvoiced か).
+- For each `cases` entry: normalize `input` (via `normalizeWithOptions(options)` if
+  present, else `normalizeWithProfile(profile ?? loose)`) and assert it equals
+  `expected`; additionally assert **idempotency** — normalizing `expected` again
+  yields `expected`. (Normalization is a fixed point.)
+- For each `inequalities` entry: assert the two inputs normalize to *different*
+  keys under the same profile/options — pins distinctions that must *not* fold
+  together (e.g. dakuten が vs. unvoiced か).
 
 ### `search.json`
 
 ```jsonc
 {
-  "version": 2,
+  "version": 3,
   "scenarios": [
     {
       "id": "...",
       "description": "...",
-      "config": {"normalize": <profile>, "strategy": <strategy>},  // optional
+      // optional; `options` (composable NormalizeOptions) takes precedence over `normalize`:
+      "config": {"normalize": <profile>, "options": {<step>: true, ...}, "strategy": <strategy>},
       "ops": [
         {"op": "index",  "id": <i64>, "text": "<string>"},
         {"op": "remove", "id": <i64>}
@@ -160,7 +174,7 @@ requires `id` only.
 
 ```jsonc
 {
-  "version": 2,
+  "version": 3,
   "cases": [
     {
       "id": "...",

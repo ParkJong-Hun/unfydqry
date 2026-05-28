@@ -13,9 +13,57 @@ use std::path::PathBuf;
 
 use serde::Deserialize;
 
-use unfydqry::{normalize, EngineConfig, NormalizeProfile, SearchEngine, SearchStrategy};
+use unfydqry::{
+    normalize, normalize_options, EngineConfig, EngineOptionsConfig, NormalizeOptions,
+    NormalizeProfile, SearchEngine, SearchStrategy,
+};
 
-const EXPECTED_VERSION: u32 = 2;
+const EXPECTED_VERSION: u32 = 3;
+
+/// The composable normalization steps a spec record may request, mirroring the
+/// FFI `NormalizeOptions`. Every field defaults to false (absent = off).
+#[derive(Deserialize, Default, Clone)]
+struct SpecOptions {
+    #[serde(default)]
+    lowercase: bool,
+    #[serde(default)]
+    kana_fold: bool,
+    #[serde(default)]
+    fold_diacritics: bool,
+    #[serde(default)]
+    fold_choonpu: bool,
+    #[serde(default)]
+    expand_iteration_marks: bool,
+    #[serde(default)]
+    normalize_hyphens: bool,
+    #[serde(default)]
+    strip_digit_grouping: bool,
+    #[serde(default)]
+    collapse_whitespace: bool,
+}
+
+impl SpecOptions {
+    fn to_ffi(&self) -> NormalizeOptions {
+        NormalizeOptions {
+            lowercase: self.lowercase,
+            kana_fold: self.kana_fold,
+            fold_diacritics: self.fold_diacritics,
+            fold_choonpu: self.fold_choonpu,
+            expand_iteration_marks: self.expand_iteration_marks,
+            normalize_hyphens: self.normalize_hyphens,
+            strip_digit_grouping: self.strip_digit_grouping,
+            collapse_whitespace: self.collapse_whitespace,
+        }
+    }
+}
+
+/// Normalizes with a record's options if present, else its named profile.
+fn normalize_spec(input: &str, options: &Option<SpecOptions>, profile: &Option<String>) -> String {
+    match options {
+        Some(o) => normalize_options(input, o.to_ffi()),
+        None => normalize(input, profile_from(profile.as_deref())),
+    }
+}
 
 /// Optional per-case / per-scenario engine configuration. Absent fields fall
 /// back to the original behaviour (loose + trigram_bm25), so existing spec
@@ -26,6 +74,8 @@ struct SpecConfig {
     normalize: Option<String>,
     #[serde(default)]
     strategy: Option<String>,
+    #[serde(default)]
+    options: Option<SpecOptions>,
 }
 
 fn profile_from(s: Option<&str>) -> NormalizeProfile {
@@ -59,6 +109,20 @@ fn ec_from(config: &Option<SpecConfig>) -> EngineConfig {
 }
 
 fn engine_for(config: &Option<SpecConfig>) -> std::sync::Arc<SearchEngine> {
+    let cfg = config.as_ref();
+    // A `config.options` set selects composable normalization (withOptions);
+    // otherwise the named-profile path (withConfig) is used.
+    if let Some(opts) = cfg.and_then(|c| c.options.as_ref()) {
+        let strategy = strategy_from(cfg.and_then(|c| c.strategy.as_deref()));
+        return SearchEngine::with_options(
+            ":memory:".to_string(),
+            EngineOptionsConfig {
+                normalize: opts.to_ffi(),
+                strategy,
+            },
+        )
+        .expect("open engine (options)");
+    }
     SearchEngine::with_config(":memory:".to_string(), ec_from(config)).expect("open engine")
 }
 
@@ -90,6 +154,8 @@ struct NormalizeCase {
     source: Option<String>,
     #[serde(default)]
     profile: Option<String>,
+    #[serde(default)]
+    options: Option<SpecOptions>,
 }
 
 #[derive(Deserialize)]
@@ -100,6 +166,8 @@ struct NormalizeInequality {
     b: String,
     #[serde(default)]
     profile: Option<String>,
+    #[serde(default)]
+    options: Option<SpecOptions>,
 }
 
 #[derive(Deserialize)]
@@ -119,15 +187,14 @@ fn normalize_spec_matches() {
     );
     assert!(!spec.cases.is_empty(), "spec/normalize.json had zero cases");
     for c in spec.cases {
-        let profile = profile_from(c.profile.as_deref());
-        let got = normalize(&c.input, profile);
+        let got = normalize_spec(&c.input, &c.options, &c.profile);
         assert_eq!(
             got, c.expected,
             "normalize id={}: {}\n  input={:?}\n  got={:?}\n  want={:?}",
             c.id, c.description, c.input, got, c.expected
         );
         // Normalization is a fixed point: applying it to its own output is identity.
-        let twice = normalize(&c.expected, profile);
+        let twice = normalize_spec(&c.expected, &c.options, &c.profile);
         assert_eq!(
             twice, c.expected,
             "normalize id={} not idempotent: {}\n  expected={:?}\n  normalize(expected)={:?}",
@@ -144,9 +211,8 @@ fn normalize_inequalities_hold() {
         "spec/normalize.json had zero inequalities"
     );
     for ineq in spec.inequalities {
-        let profile = profile_from(ineq.profile.as_deref());
-        let na = normalize(&ineq.a, profile);
-        let nb = normalize(&ineq.b, profile);
+        let na = normalize_spec(&ineq.a, &ineq.options, &ineq.profile);
+        let nb = normalize_spec(&ineq.b, &ineq.options, &ineq.profile);
         assert_ne!(
             na, nb,
             "normalize inequality id={}: {}\n  a={:?} → {:?}\n  b={:?} → {:?} (must differ)",

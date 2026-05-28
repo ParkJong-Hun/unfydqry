@@ -4,6 +4,7 @@ import com.fasterxml.jackson.annotation.JsonProperty
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import com.fasterxml.jackson.module.kotlin.readValue
 import java.io.File
+import uniffi.unfydqry.NormalizeOptions
 
 /**
  * Loads normalize.json and search.json from the spec directory once and exposes them
@@ -16,7 +17,7 @@ import java.io.File
  * simultaneously.
  */
 object Spec {
-    const val EXPECTED_VERSION: Int = 2
+    const val EXPECTED_VERSION: Int = 3
 
     private val mapper = jacksonObjectMapper()
 
@@ -44,15 +45,45 @@ data class NormalizeCase(
     val source: String? = null,
     /** Optional normalize profile key (e.g. "nfkc_case_fold"); absent means "loose". */
     val profile: String? = null,
+    /** Optional composable steps; when present they override [profile]. */
+    val options: SpecOptions? = null,
 )
 
 /**
+ * The composable normalization steps a spec record may request, mirroring the
+ * FFI [NormalizeOptions]. Absent keys default to false.
+ */
+data class SpecOptions(
+    val lowercase: Boolean = false,
+    @JsonProperty("kana_fold") val kanaFold: Boolean = false,
+    @JsonProperty("fold_diacritics") val foldDiacritics: Boolean = false,
+    @JsonProperty("fold_choonpu") val foldChoonpu: Boolean = false,
+    @JsonProperty("expand_iteration_marks") val expandIterationMarks: Boolean = false,
+    @JsonProperty("normalize_hyphens") val normalizeHyphens: Boolean = false,
+    @JsonProperty("strip_digit_grouping") val stripDigitGrouping: Boolean = false,
+    @JsonProperty("collapse_whitespace") val collapseWhitespace: Boolean = false,
+) {
+    fun toFfi(): NormalizeOptions = NormalizeOptions(
+        lowercase = lowercase,
+        kanaFold = kanaFold,
+        foldDiacritics = foldDiacritics,
+        foldChoonpu = foldChoonpu,
+        expandIterationMarks = expandIterationMarks,
+        normalizeHyphens = normalizeHyphens,
+        stripDigitGrouping = stripDigitGrouping,
+        collapseWhitespace = collapseWhitespace,
+    )
+}
+
+/**
  * Optional per-scenario engine configuration. Absent fields fall back to the
- * original behaviour (loose + trigram_bm25).
+ * original behaviour (loose + trigram_bm25). When [options] is present it
+ * selects composable normalization instead of the named [normalize] profile.
  */
 data class SpecConfig(
     val normalize: String? = null,
     val strategy: String? = null,
+    val options: SpecOptions? = null,
 )
 
 /** A pair that must normalize to *distinct* keys (e.g. dakuten が vs. unvoiced か). */
@@ -62,6 +93,8 @@ data class NormalizeInequality(
     val a: String,
     val b: String,
     val profile: String? = null,
+    /** Optional composable steps; when present they override [profile]. */
+    val options: SpecOptions? = null,
 )
 
 data class NormalizeSpec(

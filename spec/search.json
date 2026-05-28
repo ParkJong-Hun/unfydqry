@@ -1,5 +1,5 @@
 {
-  "version": 2,
+  "version": 3,
   "scenarios": [
     {
       "id": "index_then_search_returns_the_doc",
@@ -330,6 +330,24 @@
         {"search": {"query": "alpha*",          "limit": 10}, "expect_no_error": true},
         {"search": {"query": "(alpha)",         "limit": 10}, "expect_no_error": true},
         {"search": {"query": "alpha:beta",      "limit": 10}, "expect_no_error": true}
+      ]
+    },
+    {
+      "id": "options_choonpu_folding_unifies_prolonged_sound",
+      "description": "With composable options {fold_choonpu}, a query carrying a prolonged-sound mark hits a document indexed without one: サーバー finds サーバ. Substring keeps the match deterministic.",
+      "config": {"options": {"fold_choonpu": true}, "strategy": "substring"},
+      "ops": [{"op": "index", "id": 1, "text": "サーバ"}],
+      "assertions": [
+        {"search": {"query": "サーバー", "limit": 10}, "expected_ids": [1]}
+      ]
+    },
+    {
+      "id": "options_diacritic_folding_matches_accentless_query",
+      "description": "With options {lowercase, fold_diacritics}, an accent-free query hits an accented document: cafe finds Café.",
+      "config": {"options": {"lowercase": true, "fold_diacritics": true}, "strategy": "substring"},
+      "ops": [{"op": "index", "id": 1, "text": "Café"}],
+      "assertions": [
+        {"search": {"query": "cafe", "limit": 10}, "expected_ids": [1]}
       ]
     }
   ],

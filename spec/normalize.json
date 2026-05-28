@@ -1,5 +1,5 @@
 {
-  "version": 2,
+  "version": 3,
   "cases": [
     {
       "id": "empty",
@@ -228,6 +228,105 @@
       "input": "Ｐｙｔｈｏｎ",
       "expected": "python",
       "profile": "nfkc_case_fold"
+    },
+
+    {
+      "id": "diacritics_fold_latin_accents",
+      "description": "fold_diacritics strips Latin combining marks: Café (after lowercase) folds to cafe.",
+      "input": "Café",
+      "expected": "cafe",
+      "options": { "lowercase": true, "fold_diacritics": true }
+    },
+    {
+      "id": "diacritics_plain_ascii_is_equivalent",
+      "description": "An accent-free input normalizes to the same key as its accented form, so café and cafe are unified under fold_diacritics.",
+      "input": "cafe",
+      "expected": "cafe",
+      "options": { "lowercase": true, "fold_diacritics": true }
+    },
+    {
+      "id": "diacritics_preserve_dakuten",
+      "description": "fold_diacritics must NOT strip Japanese voiced marks (U+3099/U+309A), which sit outside the Latin combining block: ガ stays ガ.",
+      "input": "ガ",
+      "expected": "ガ",
+      "options": { "fold_diacritics": true }
+    },
+    {
+      "id": "choonpu_fold_after_kana",
+      "description": "fold_choonpu drops the prolonged-sound mark ー when it follows kana: サーバー folds to サバ.",
+      "input": "サーバー",
+      "expected": "サバ",
+      "options": { "fold_choonpu": true }
+    },
+    {
+      "id": "choonpu_no_mark_is_equivalent",
+      "description": "サーバ (no prolonged-sound mark) normalizes to the same key as サーバー under fold_choonpu.",
+      "input": "サーバ",
+      "expected": "サバ",
+      "options": { "fold_choonpu": true }
+    },
+    {
+      "id": "choonpu_kept_when_not_after_kana",
+      "description": "A ー that does not follow kana (e.g. after Latin) is left intact — it is treated as a prolonged-sound mark only after kana.",
+      "input": "Aー",
+      "expected": "aー",
+      "options": { "lowercase": true, "fold_choonpu": true }
+    },
+    {
+      "id": "iteration_mark_kanji",
+      "description": "expand_iteration_marks repeats the preceding kanji: 時々 expands to 時時.",
+      "input": "時々",
+      "expected": "時時",
+      "options": { "expand_iteration_marks": true }
+    },
+    {
+      "id": "iteration_mark_kana_unvoiced",
+      "description": "ゝ repeats the preceding hiragana unchanged: いゝ expands to いい.",
+      "input": "いゝ",
+      "expected": "いい",
+      "options": { "expand_iteration_marks": true }
+    },
+    {
+      "id": "iteration_mark_kana_voiced",
+      "description": "ゞ repeats the preceding kana and adds dakuten: こゞ expands to こご.",
+      "input": "こゞ",
+      "expected": "こご",
+      "options": { "expand_iteration_marks": true }
+    },
+    {
+      "id": "hyphen_family_unified",
+      "description": "normalize_hyphens maps the dash/hyphen family (here an en dash) to ASCII '-'.",
+      "input": "9–5",
+      "expected": "9-5",
+      "options": { "normalize_hyphens": true }
+    },
+    {
+      "id": "digit_grouping_stripped",
+      "description": "strip_digit_grouping removes commas between digits: 1,000,000 becomes 1000000.",
+      "input": "1,000,000",
+      "expected": "1000000",
+      "options": { "strip_digit_grouping": true }
+    },
+    {
+      "id": "digit_grouping_keeps_non_digit_comma",
+      "description": "A comma not flanked by digits on both sides is preserved.",
+      "input": "a,b",
+      "expected": "a,b",
+      "options": { "strip_digit_grouping": true }
+    },
+    {
+      "id": "whitespace_collapsed",
+      "description": "collapse_whitespace squeezes runs of whitespace to a single space and trims the ends.",
+      "input": "  a   b  ",
+      "expected": "a b",
+      "options": { "collapse_whitespace": true }
+    },
+    {
+      "id": "combo_loose_plus_choonpu",
+      "description": "Steps compose: loose (lowercase + kana_fold) plus fold_choonpu turns サーバー into さば.",
+      "input": "サーバー",
+      "expected": "さば",
+      "options": { "lowercase": true, "kana_fold": true, "fold_choonpu": true }
     }
   ],
   "inequalities": [
@@ -255,6 +354,13 @@
       "a": "カ",
       "b": "か",
       "profile": "nfkc_case_fold"
+    },
+    {
+      "id": "choonpu_distinct_without_fold",
+      "description": "With NFKC only (no fold_choonpu), the prolonged-sound mark is significant, so サーバー and サーバ stay distinct keys.",
+      "a": "サーバー",
+      "b": "サーバ",
+      "options": {}
     }
   ]
 }
