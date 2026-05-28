@@ -8,8 +8,11 @@ import org.junit.jupiter.params.ParameterizedTest
 import org.junit.jupiter.params.provider.Arguments
 import org.junit.jupiter.params.provider.MethodSource
 import java.util.stream.Stream
+import uniffi.unfydqry.EngineConfig
+import uniffi.unfydqry.NormalizeProfile
 import uniffi.unfydqry.SearchEngine
-import uniffi.unfydqry.normalizeLoose
+import uniffi.unfydqry.SearchStrategy
+import uniffi.unfydqry.normalizeWithProfile
 
 /**
  * Materializes the "golden tests" from design doc §E.4 in the form of
@@ -24,7 +27,7 @@ class SpecDrivenTest {
         @JvmStatic
         fun normalizeCases(): Stream<Arguments> =
             Spec.normalize.cases.stream().map {
-                Arguments.of(it.id, it.description, it.input, it.expected)
+                Arguments.of(it.id, it.description, it.input, it.expected, it.profile)
             }
 
         @JvmStatic
@@ -48,6 +51,29 @@ class SpecDrivenTest {
                 }
             }
         }
+
+        /** Maps a spec profile key to the FFI enum; absent → loose. */
+        fun profile(key: String?): NormalizeProfile = when (key ?: "loose") {
+            "loose" -> NormalizeProfile.LOOSE
+            "nfkc_case_fold" -> NormalizeProfile.NFKC_CASE_FOLD
+            else -> error("unknown normalize profile \"$key\"")
+        }
+
+        /** Maps a spec strategy key to the FFI enum; absent → trigram_bm25. */
+        fun strategy(key: String?): SearchStrategy = when (key ?: "trigram_bm25") {
+            "trigram_bm25" -> SearchStrategy.TRIGRAM_BM25
+            "substring" -> SearchStrategy.SUBSTRING
+            "prefix" -> SearchStrategy.PREFIX
+            else -> error("unknown search strategy \"$key\"")
+        }
+
+        /** Opens an in-memory engine for the given optional config. */
+        fun engine(config: SpecConfig?): SearchEngine =
+            if (config == null) SearchEngine(":memory:")
+            else SearchEngine.withConfig(
+                ":memory:",
+                EngineConfig(profile(config.normalize), strategy(config.strategy)),
+            )
     }
 
     @Test fun `normalize spec version is expected`() {
@@ -60,14 +86,14 @@ class SpecDrivenTest {
 
     @ParameterizedTest(name = "{0}: {1}")
     @MethodSource("normalizeCases")
-    fun `normalize matches spec`(id: String, description: String, input: String, expected: String) {
-        assertEquals(expected, normalizeLoose(input), "id=$id: $description")
+    fun `normalize matches spec`(id: String, description: String, input: String, expected: String, profile: String?) {
+        assertEquals(expected, normalizeWithProfile(input, profile(profile)), "id=$id: $description")
     }
 
     @ParameterizedTest(name = "{0}")
     @MethodSource("scenarios")
     fun `scenario matches spec`(id: String, s: Scenario) {
-        val engine = SearchEngine(":memory:")
+        val engine = engine(s.config)
         apply(s.ops, engine)
         for (assertion in s.assertions) {
             val got = engine.search(assertion.search.query, assertion.search.limit.toUInt())
@@ -82,7 +108,7 @@ class SpecDrivenTest {
     @ParameterizedTest(name = "{0}")
     @MethodSource("matrixQueries")
     fun `seeded matrix query matches spec`(label: String, m: SeededMatrix, q: QueryExpectation) {
-        val engine = SearchEngine(":memory:")
+        val engine = engine(m.config)
         apply(m.seed, engine)
         val got = engine.search(q.query, m.limit.toUInt()).map { it.id }.toSet()
         val want = q.expectedIds.toSet()

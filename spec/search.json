@@ -172,6 +172,38 @@
       "assertions": [
         {"search": {"query": "とうきょう", "limit": 10}, "expected_ids": []}
       ]
+    },
+    {
+      "id": "prefix_strategy_matches_only_leading",
+      "description": "With strategy=prefix, a query matches only documents whose normalized text STARTS with it. 'beta' must not hit a doc where it appears mid-string, unlike the default trigram strategy.",
+      "config": {"strategy": "prefix"},
+      "ops": [
+        {"op": "index", "id": 1, "text": "alpha beta"},
+        {"op": "index", "id": 2, "text": "beta gamma"}
+      ],
+      "assertions": [
+        {"search": {"query": "beta",  "limit": 10}, "expected_ids": [2]},
+        {"search": {"query": "alpha", "limit": 10}, "expected_ids": [1]}
+      ]
+    },
+    {
+      "id": "substring_strategy_matches_short_mid_string",
+      "description": "With strategy=substring, even a 2-char query matches a mid-string occurrence via LIKE (no trigram minimum-length restriction).",
+      "config": {"strategy": "substring"},
+      "ops": [{"op": "index", "id": 1, "text": "abcdef"}],
+      "assertions": [
+        {"search": {"query": "cd", "limit": 10}, "expected_ids": [1]}
+      ]
+    },
+    {
+      "id": "nfkc_case_fold_keeps_kana_distinct",
+      "description": "With normalize=nfkc_case_fold, katakana and hiragana are NOT unified, so a hiragana query must not hit a katakana doc (and vice versa). Width/case are still folded.",
+      "config": {"normalize": "nfkc_case_fold", "strategy": "substring"},
+      "ops": [{"op": "index", "id": 1, "text": "カタカナ"}],
+      "assertions": [
+        {"search": {"query": "かたかな", "limit": 10}, "expected_ids": []},
+        {"search": {"query": "カタカナ", "limit": 10}, "expected_ids": [1]}
+      ]
     }
   ],
   "seeded_matrices": [

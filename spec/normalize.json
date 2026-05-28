@@ -207,6 +207,27 @@
       "description": "Fullwidth space U+3000 normalizes to ASCII space via NFKC.",
       "input": "あ　い",
       "expected": "あ い"
+    },
+    {
+      "id": "nfkc_case_fold_keeps_katakana",
+      "description": "Under the nfkc_case_fold profile, katakana is NOT mapped to hiragana (kana variants stay distinct).",
+      "input": "カタカナ",
+      "expected": "カタカナ",
+      "profile": "nfkc_case_fold"
+    },
+    {
+      "id": "nfkc_case_fold_halfwidth_katakana_recomposes",
+      "description": "Under nfkc_case_fold, half-width katakana still recomposes to full-width katakana via NFKC, but stays katakana (not hiragana).",
+      "input": "ｶﾀｶﾅ",
+      "expected": "カタカナ",
+      "profile": "nfkc_case_fold"
+    },
+    {
+      "id": "nfkc_case_fold_still_folds_case_and_width",
+      "description": "Under nfkc_case_fold, full-width Latin still folds to lowercase ASCII (only the kana-unification axis is dropped).",
+      "input": "Ｐｙｔｈｏｎ",
+      "expected": "python",
+      "profile": "nfkc_case_fold"
     }
   ]
 }

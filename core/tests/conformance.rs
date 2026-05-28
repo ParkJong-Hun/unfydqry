@@ -13,9 +13,46 @@ use std::path::PathBuf;
 
 use serde::Deserialize;
 
-use unfydqry::{normalize_loose, SearchEngine};
+use unfydqry::{normalize, EngineConfig, NormalizeProfile, SearchEngine, SearchStrategy};
 
 const EXPECTED_VERSION: u32 = 1;
+
+/// Optional per-case / per-scenario engine configuration. Absent fields fall
+/// back to the original behaviour (loose + trigram_bm25), so existing spec
+/// records that omit `config`/`profile` are unaffected.
+#[derive(Deserialize, Default)]
+struct SpecConfig {
+    #[serde(default)]
+    normalize: Option<String>,
+    #[serde(default)]
+    strategy: Option<String>,
+}
+
+fn profile_from(s: Option<&str>) -> NormalizeProfile {
+    match s.unwrap_or("loose") {
+        "loose" => NormalizeProfile::Loose,
+        "nfkc_case_fold" => NormalizeProfile::NfkcCaseFold,
+        other => panic!("unknown normalize profile {other:?}"),
+    }
+}
+
+fn strategy_from(s: Option<&str>) -> SearchStrategy {
+    match s.unwrap_or("trigram_bm25") {
+        "trigram_bm25" => SearchStrategy::TrigramBm25,
+        "substring" => SearchStrategy::Substring,
+        "prefix" => SearchStrategy::Prefix,
+        other => panic!("unknown search strategy {other:?}"),
+    }
+}
+
+fn engine_for(config: &Option<SpecConfig>) -> std::sync::Arc<SearchEngine> {
+    let cfg = config.as_ref();
+    let ec = EngineConfig {
+        normalize: profile_from(cfg.and_then(|c| c.normalize.as_deref())),
+        strategy: strategy_from(cfg.and_then(|c| c.strategy.as_deref())),
+    };
+    SearchEngine::with_config(":memory:".to_string(), ec).expect("open engine")
+}
 
 fn spec_dir() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))
@@ -43,6 +80,8 @@ struct NormalizeCase {
     #[serde(default)]
     #[allow(dead_code)]
     source: Option<String>,
+    #[serde(default)]
+    profile: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -60,7 +99,7 @@ fn normalize_spec_matches() {
     );
     assert!(!spec.cases.is_empty(), "spec/normalize.json had zero cases");
     for c in spec.cases {
-        let got = normalize_loose(&c.input);
+        let got = normalize(&c.input, profile_from(c.profile.as_deref()));
         assert_eq!(
             got, c.expected,
             "normalize id={}: {}\n  input={:?}\n  got={:?}\n  want={:?}",
@@ -99,6 +138,8 @@ struct Scenario {
     description: String,
     ops: Vec<IndexOp>,
     assertions: Vec<Assertion>,
+    #[serde(default)]
+    config: Option<SpecConfig>,
 }
 
 #[derive(Deserialize)]
@@ -116,6 +157,8 @@ struct SeededMatrix {
     limit: u32,
     seed: Vec<IndexOp>,
     queries: Vec<QueryExpectation>,
+    #[serde(default)]
+    config: Option<SpecConfig>,
 }
 
 #[derive(Deserialize)]
@@ -147,7 +190,7 @@ fn search_scenarios_match() {
     );
 
     for s in spec.scenarios {
-        let engine = SearchEngine::new(":memory:".to_string()).expect("open engine");
+        let engine = engine_for(&s.config);
         apply_ops(&engine, &s.ops);
         for a in &s.assertions {
             let hits = engine
@@ -173,7 +216,7 @@ fn seeded_matrices_match() {
     );
 
     for m in spec.seeded_matrices {
-        let engine = SearchEngine::new(":memory:".to_string()).expect("open engine");
+        let engine = engine_for(&m.config);
         apply_ops(&engine, &m.seed);
         for q in &m.queries {
             let hits = engine.search(q.query.clone(), m.limit).expect("search");

@@ -41,6 +41,17 @@ data class NormalizeCase(
     val input: String,
     val expected: String,
     val source: String? = null,
+    /** Optional normalize profile key (e.g. "nfkc_case_fold"); absent means "loose". */
+    val profile: String? = null,
+)
+
+/**
+ * Optional per-scenario engine configuration. Absent fields fall back to the
+ * original behaviour (loose + trigram_bm25).
+ */
+data class SpecConfig(
+    val normalize: String? = null,
+    val strategy: String? = null,
 )
 
 data class NormalizeSpec(
@@ -71,6 +82,7 @@ data class Scenario(
     val description: String,
     val ops: List<IndexOp>,
     val assertions: List<Assertion>,
+    val config: SpecConfig? = null,
 )
 
 data class QueryExpectation(
@@ -85,6 +97,7 @@ data class SeededMatrix(
     val limit: Long,
     val seed: List<IndexOp>,
     val queries: List<QueryExpectation>,
+    val config: SpecConfig? = null,
 )
 
 data class SearchSpecFile(

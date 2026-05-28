@@ -12,8 +12,23 @@ Background and rationale: see [`../docs/cross-platform-search-engine-design.md`]
 
 | File | What it drives |
 |---|---|
-| `normalize.json` | `normalizeLoose(input)` pure `(input → expected)` cases incl. the design-doc §2.2 trace table. |
+| `normalize.json` | `normalize(input, profile)` pure `(input → expected)` cases incl. the design-doc §2.2 trace table. |
 | `search.json` | `SearchEngine` scenarios (a sequence of `ops` followed by `assertions`) and `seeded_matrices` (shared seed reused across many queries). |
+
+## Optional behaviour selectors
+
+Both files support **optional** fields that pick which normalize profile / search
+strategy a case runs under. They are backward compatible: a record that omits
+them falls back to the original behaviour, so existing cases and any loader that
+ignores the fields keep working without a `version` bump.
+
+- `normalize.json` cases may set `"profile"`: one of `"loose"` (default) or
+  `"nfkc_case_fold"`. Loaders map it and call `normalizeWithProfile(input, profile)`.
+- `search.json` scenarios and `seeded_matrices` may set `"config"`:
+  `{"normalize": <profile>, "strategy": <strategy>}`. Either key is optional;
+  `normalize` defaults to `"loose"` and `strategy` to `"trigram_bm25"`. Other
+  strategies: `"substring"`, `"prefix"`. When present, loaders open the engine
+  via `SearchEngine.withConfig(dbPath, config)` instead of the default constructor.
 
 ## Common conventions
 
@@ -52,7 +67,7 @@ Every individual record carries an `id` (or `query` for matrix entries) and a
 }
 ```
 
-Loader pseudocode: for each case, assert `normalizeLoose(input) == expected`.
+Loader pseudocode: for each case, assert `normalizeWithProfile(input, profile ?? loose) == expected`.
 
 ### `search.json`
 

@@ -41,6 +41,15 @@ struct NormalizeCase: Decodable, Sendable {
     let input: String
     let expected: String
     let source: String?
+    /// Optional normalize profile key (e.g. "nfkc_case_fold"); absent means "loose".
+    let profile: String?
+}
+
+/// Optional per-scenario engine configuration. Absent fields fall back to the
+/// original behaviour (loose + trigram_bm25).
+struct SpecConfig: Decodable, Sendable {
+    let normalize: String?
+    let strategy: String?
 }
 
 struct NormalizeSpec: Decodable, Sendable {
@@ -76,6 +85,7 @@ struct Scenario: Decodable, Sendable {
     let description: String
     let ops: [IndexOp]
     let assertions: [Assertion]
+    let config: SpecConfig?
 }
 
 struct QueryExpectation: Decodable, Sendable {
@@ -95,6 +105,7 @@ struct SeededMatrix: Decodable, Sendable {
     let limit: UInt32
     let seed: [IndexOp]
     let queries: [QueryExpectation]
+    let config: SpecConfig?
 }
 
 struct SearchSpecFile: Decodable, Sendable {

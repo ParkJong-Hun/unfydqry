@@ -724,6 +724,10 @@ internal interface UniffiForeignFutureCompleteVoid : com.sun.jna.Callback {
 
 
 
+
+
+
+
 // A JNA Library to expose the extern-C FFI definitions.
 // This is an implementation detail which will be called internally by the public API.
 
@@ -749,6 +753,8 @@ internal interface UniffiLib : Library {
     ): Unit
     fun uniffi_unfydqry_fn_constructor_searchengine_new(`dbPath`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
     ): Pointer
+    fun uniffi_unfydqry_fn_constructor_searchengine_withconfig(`dbPath`: RustBuffer.ByValue,`config`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+    ): Pointer
     fun uniffi_unfydqry_fn_method_searchengine_index(`ptr`: Pointer,`id`: Long,`text`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
     ): Unit
     fun uniffi_unfydqry_fn_method_searchengine_remove(`ptr`: Pointer,`id`: Long,uniffi_out_err: UniffiRustCallStatus, 
@@ -756,6 +762,8 @@ internal interface UniffiLib : Library {
     fun uniffi_unfydqry_fn_method_searchengine_search(`ptr`: Pointer,`query`: RustBuffer.ByValue,`limit`: Int,uniffi_out_err: UniffiRustCallStatus, 
     ): RustBuffer.ByValue
     fun uniffi_unfydqry_fn_func_normalizeloose(`input`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+    ): RustBuffer.ByValue
+    fun uniffi_unfydqry_fn_func_normalizewithprofile(`input`: RustBuffer.ByValue,`profile`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
     ): RustBuffer.ByValue
     fun ffi_unfydqry_rustbuffer_alloc(`size`: Long,uniffi_out_err: UniffiRustCallStatus, 
     ): RustBuffer.ByValue
@@ -871,6 +879,8 @@ internal interface UniffiLib : Library {
     ): Unit
     fun uniffi_unfydqry_checksum_func_normalizeloose(
     ): Short
+    fun uniffi_unfydqry_checksum_func_normalizewithprofile(
+    ): Short
     fun uniffi_unfydqry_checksum_method_searchengine_index(
     ): Short
     fun uniffi_unfydqry_checksum_method_searchengine_remove(
@@ -878,6 +888,8 @@ internal interface UniffiLib : Library {
     fun uniffi_unfydqry_checksum_method_searchengine_search(
     ): Short
     fun uniffi_unfydqry_checksum_constructor_searchengine_new(
+    ): Short
+    fun uniffi_unfydqry_checksum_constructor_searchengine_withconfig(
     ): Short
     fun ffi_unfydqry_uniffi_contract_version(
     ): Int
@@ -896,7 +908,10 @@ private fun uniffiCheckContractApiVersion(lib: UniffiLib) {
 
 @Suppress("UNUSED_PARAMETER")
 private fun uniffiCheckApiChecksums(lib: UniffiLib) {
-    if (lib.uniffi_unfydqry_checksum_func_normalizeloose() != 38823.toShort()) {
+    if (lib.uniffi_unfydqry_checksum_func_normalizeloose() != 44462.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if (lib.uniffi_unfydqry_checksum_func_normalizewithprofile() != 49347.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if (lib.uniffi_unfydqry_checksum_method_searchengine_index() != 52654.toShort()) {
@@ -908,7 +923,10 @@ private fun uniffiCheckApiChecksums(lib: UniffiLib) {
     if (lib.uniffi_unfydqry_checksum_method_searchengine_search() != 52212.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if (lib.uniffi_unfydqry_checksum_constructor_searchengine_new() != 21833.toShort()) {
+    if (lib.uniffi_unfydqry_checksum_constructor_searchengine_new() != 487.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if (lib.uniffi_unfydqry_checksum_constructor_searchengine_withconfig() != 51809.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
 }
@@ -1277,6 +1295,10 @@ open class SearchEngine: Disposable, AutoCloseable, SearchEngineInterface {
         this.pointer = null
         this.cleanable = UniffiLib.CLEANER.register(this, UniffiCleanAction(pointer))
     }
+    /**
+     * Opens the index with the default behaviour (loose normalization +
+     * trigram/bm25). Kept for backward compatibility.
+     */
     constructor(`dbPath`: kotlin.String) :
         this(
     uniffiRustCallWithError(SearchException) { _status ->
@@ -1391,8 +1413,24 @@ open class SearchEngine: Disposable, AutoCloseable, SearchEngineInterface {
     
 
     
+    companion object {
+        
+    /**
+     * Opens the index with a host-selected combination of normalization
+     * profile and search strategy.
+     */
+    @Throws(SearchException::class) fun `withConfig`(`dbPath`: kotlin.String, `config`: EngineConfig): SearchEngine {
+            return FfiConverterTypeSearchEngine.lift(
+    uniffiRustCallWithError(SearchException) { _status ->
+    UniffiLib.INSTANCE.uniffi_unfydqry_fn_constructor_searchengine_withconfig(
+        FfiConverterString.lower(`dbPath`),FfiConverterTypeEngineConfig.lower(`config`),_status)
+}
+    )
+    }
     
-    companion object
+
+        
+    }
     
 }
 
@@ -1421,6 +1459,41 @@ public object FfiConverterTypeSearchEngine: FfiConverter<SearchEngine, Pointer> 
         // The Rust code always expects pointers written as 8 bytes,
         // and will fail to compile if they don't fit.
         buf.putLong(Pointer.nativeValue(lower(value)))
+    }
+}
+
+
+
+/**
+ * The combination the host selects when constructing an engine.
+ */
+data class EngineConfig (
+    var `normalize`: NormalizeProfile, 
+    var `strategy`: SearchStrategy
+) {
+    
+    companion object
+}
+
+/**
+ * @suppress
+ */
+public object FfiConverterTypeEngineConfig: FfiConverterRustBuffer<EngineConfig> {
+    override fun read(buf: ByteBuffer): EngineConfig {
+        return EngineConfig(
+            FfiConverterTypeNormalizeProfile.read(buf),
+            FfiConverterTypeSearchStrategy.read(buf),
+        )
+    }
+
+    override fun allocationSize(value: EngineConfig) = (
+            FfiConverterTypeNormalizeProfile.allocationSize(value.`normalize`) +
+            FfiConverterTypeSearchStrategy.allocationSize(value.`strategy`)
+    )
+
+    override fun write(value: EngineConfig, buf: ByteBuffer) {
+            FfiConverterTypeNormalizeProfile.write(value.`normalize`, buf)
+            FfiConverterTypeSearchStrategy.write(value.`strategy`, buf)
     }
 }
 
@@ -1458,6 +1531,44 @@ public object FfiConverterTypeHit: FfiConverterRustBuffer<Hit> {
 
 
 
+/**
+ * Which normalization pipeline runs at index and query time.
+ *
+ * `Loose` is the original behaviour (NFKC → katakana→hiragana → lowercase).
+ */
+
+enum class NormalizeProfile {
+    
+    LOOSE,
+    /**
+     * NFKC + lowercase only; kana variants are kept distinct.
+     */
+    NFKC_CASE_FOLD;
+    companion object
+}
+
+
+/**
+ * @suppress
+ */
+public object FfiConverterTypeNormalizeProfile: FfiConverterRustBuffer<NormalizeProfile> {
+    override fun read(buf: ByteBuffer) = try {
+        NormalizeProfile.values()[buf.getInt() - 1]
+    } catch (e: IndexOutOfBoundsException) {
+        throw RuntimeException("invalid enum value, something is very wrong!!", e)
+    }
+
+    override fun allocationSize(value: NormalizeProfile) = 4UL
+
+    override fun write(value: NormalizeProfile, buf: ByteBuffer) {
+        buf.putInt(value.ordinal + 1)
+    }
+}
+
+
+
+
+
 
 
 sealed class SearchException: kotlin.Exception() {
@@ -1468,6 +1579,16 @@ sealed class SearchException: kotlin.Exception() {
         ) : SearchException() {
         override val message
             get() = "v1=${ v1 }"
+    }
+    
+    class ConfigMismatch(
+        
+        val `stored`: kotlin.String, 
+        
+        val `requested`: kotlin.String
+        ) : SearchException() {
+        override val message
+            get() = "stored=${ `stored` }, requested=${ `requested` }"
     }
     
 
@@ -1489,6 +1610,10 @@ public object FfiConverterTypeSearchError : FfiConverterRustBuffer<SearchExcepti
             1 -> SearchException.Db(
                 FfiConverterString.read(buf),
                 )
+            2 -> SearchException.ConfigMismatch(
+                FfiConverterString.read(buf),
+                FfiConverterString.read(buf),
+                )
             else -> throw RuntimeException("invalid error enum value, something is very wrong!!")
         }
     }
@@ -1500,6 +1625,12 @@ public object FfiConverterTypeSearchError : FfiConverterRustBuffer<SearchExcepti
                 4UL
                 + FfiConverterString.allocationSize(value.v1)
             )
+            is SearchException.ConfigMismatch -> (
+                // Add the size for the Int that specifies the variant plus the size needed for all fields
+                4UL
+                + FfiConverterString.allocationSize(value.`stored`)
+                + FfiConverterString.allocationSize(value.`requested`)
+            )
         }
     }
 
@@ -1510,10 +1641,59 @@ public object FfiConverterTypeSearchError : FfiConverterRustBuffer<SearchExcepti
                 FfiConverterString.write(value.v1, buf)
                 Unit
             }
+            is SearchException.ConfigMismatch -> {
+                buf.putInt(2)
+                FfiConverterString.write(value.`stored`, buf)
+                FfiConverterString.write(value.`requested`, buf)
+                Unit
+            }
         }.let { /* this makes the `when` an expression, which ensures it is exhaustive */ }
     }
 
 }
+
+
+
+/**
+ * Which query algorithm `SearchEngine::search` uses.
+ */
+
+enum class SearchStrategy {
+    
+    /**
+     * Trigram FTS5 + bm25, with a LIKE fallback for queries shorter than 3 chars.
+     */
+    TRIGRAM_BM25,
+    /**
+     * Substring match (`LIKE '%q%'`) for every query.
+     */
+    SUBSTRING,
+    /**
+     * Prefix match (`LIKE 'q%'`) for every query.
+     */
+    PREFIX;
+    companion object
+}
+
+
+/**
+ * @suppress
+ */
+public object FfiConverterTypeSearchStrategy: FfiConverterRustBuffer<SearchStrategy> {
+    override fun read(buf: ByteBuffer) = try {
+        SearchStrategy.values()[buf.getInt() - 1]
+    } catch (e: IndexOutOfBoundsException) {
+        throw RuntimeException("invalid enum value, something is very wrong!!", e)
+    }
+
+    override fun allocationSize(value: SearchStrategy) = 4UL
+
+    override fun write(value: SearchStrategy, buf: ByteBuffer) {
+        buf.putInt(value.ordinal + 1)
+    }
+}
+
+
 
 
 
@@ -1543,12 +1723,25 @@ public object FfiConverterSequenceTypeHit: FfiConverterRustBuffer<List<Hit>> {
     }
 }
         /**
-         * Exposed through FFI so the normalized form can be inspected for testing and debugging.
+         * Exposed through FFI so the loose normalized form can be inspected for
+         * testing and debugging. Retained for backward compatibility.
          */ fun `normalizeLoose`(`input`: kotlin.String): kotlin.String {
             return FfiConverterString.lift(
     uniffiRustCall() { _status ->
     UniffiLib.INSTANCE.uniffi_unfydqry_fn_func_normalizeloose(
         FfiConverterString.lower(`input`),_status)
+}
+    )
+    }
+    
+
+        /**
+         * Like `normalizeLoose`, but lets the caller pick the normalization profile.
+         */ fun `normalizeWithProfile`(`input`: kotlin.String, `profile`: NormalizeProfile): kotlin.String {
+            return FfiConverterString.lift(
+    uniffiRustCall() { _status ->
+    UniffiLib.INSTANCE.uniffi_unfydqry_fn_func_normalizewithprofile(
+        FfiConverterString.lower(`input`),FfiConverterTypeNormalizeProfile.lower(`profile`),_status)
 }
     )
     }
