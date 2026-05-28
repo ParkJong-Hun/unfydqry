@@ -226,6 +226,14 @@ gradle :app:assembleDebug
 adb install -r app/build/outputs/apk/debug/app-debug.apk
 ```
 
+### サンプルアプリ
+
+両サンプル(`ios/sample`、`android/sample/app`)は同じ UX で、2プラットフォームを並べて見比べられる:
+
+- 標準の検索フィールド＋**インクリメンタル検索**(約150msデバウンス)。空クエリでは seed 済みの全件を表示。
+- **設定モーダル**(SwiftUI `.sheet` / Compose `ModalBottomSheet`)に `NormalizeOptions` 各ステップのトグル、検索アルゴリズム選択、**インデックス再生成**ボタン。ステップを切り替えると `withOptionsRebuilding` でその場再生成し、文書を再投入せずに結果が更新される。
+- seed コーパスは両プラットフォーム共通で、各ステップ(かな/全半角/大小・アクセント・長音・繰り返し記号・ハイフン・桁区切り)を試せるよう選定。
+
 ## テスト
 
 3 つのランナ — `cargo test`(Rust)/ `swift test`(Swift Testing)/

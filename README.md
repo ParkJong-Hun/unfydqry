@@ -250,6 +250,21 @@ gradle :app:assembleDebug
 adb install -r app/build/outputs/apk/debug/app-debug.apk
 ```
 
+### Sample apps
+
+Both sample apps (`ios/sample`, `android/sample/app`) demo the same UX so the
+two platforms can be eyeballed side by side:
+
+- A standard search field with **incremental search** (debounced ~150 ms); an
+  empty query lists every seeded document.
+- A **settings modal** (SwiftUI `.sheet` / Compose `ModalBottomSheet`) with a
+  toggle per `NormalizeOptions` step, the search-algorithm picker, and an
+  **index-regeneration** button. Flipping a step regenerates the index in place
+  via `withOptionsRebuilding`, so results update without re-feeding documents.
+- The same seed corpus on both platforms, chosen to exercise each step (kana /
+  width / case folding, diacritics, chōonpu, iteration marks, hyphens, digit
+  grouping) so the effect of toggling a step is visible.
+
 ## Tests
 
 Three runners — `cargo test` (Rust), `swift test` (Swift Testing), and
