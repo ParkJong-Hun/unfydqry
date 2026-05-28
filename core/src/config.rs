@@ -34,6 +34,16 @@ pub enum SearchStrategy {
     Substring,
     /// Prefix match (`LIKE 'q%'`) for every query.
     Prefix,
+    /// Suffix match (`LIKE '%q'`) for every query.
+    Suffix,
+    /// Every whitespace-separated term must appear (substring), order-independent.
+    AllTerms,
+    /// Character-trigram set similarity (Jaccard); ranked by 1 − similarity.
+    FuzzyTrigram,
+    /// Typo-tolerant: min Levenshtein distance to any word in the doc.
+    Levenshtein,
+    /// Like `Levenshtein`, but an adjacent transposition counts as one edit.
+    DamerauLevenshtein,
 }
 
 /// The combination the host selects when constructing an engine.

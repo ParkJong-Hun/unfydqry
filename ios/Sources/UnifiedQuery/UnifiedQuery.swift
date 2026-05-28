@@ -951,6 +951,26 @@ public enum SearchStrategy {
      * Prefix match (`LIKE 'q%'`) for every query.
      */
     case prefix
+    /**
+     * Suffix match (`LIKE '%q'`) for every query.
+     */
+    case suffix
+    /**
+     * Every whitespace-separated term must appear (substring), order-independent.
+     */
+    case allTerms
+    /**
+     * Character-trigram set similarity (Jaccard); ranked by 1 − similarity.
+     */
+    case fuzzyTrigram
+    /**
+     * Typo-tolerant: min Levenshtein distance to any word in the doc.
+     */
+    case levenshtein
+    /**
+     * Like `Levenshtein`, but an adjacent transposition counts as one edit.
+     */
+    case damerauLevenshtein
 }
 
 
@@ -970,6 +990,16 @@ public struct FfiConverterTypeSearchStrategy: FfiConverterRustBuffer {
         
         case 3: return .prefix
         
+        case 4: return .suffix
+        
+        case 5: return .allTerms
+        
+        case 6: return .fuzzyTrigram
+        
+        case 7: return .levenshtein
+        
+        case 8: return .damerauLevenshtein
+        
         default: throw UniffiInternalError.unexpectedEnumCase
         }
     }
@@ -988,6 +1018,26 @@ public struct FfiConverterTypeSearchStrategy: FfiConverterRustBuffer {
         
         case .prefix:
             writeInt(&buf, Int32(3))
+        
+        
+        case .suffix:
+            writeInt(&buf, Int32(4))
+        
+        
+        case .allTerms:
+            writeInt(&buf, Int32(5))
+        
+        
+        case .fuzzyTrigram:
+            writeInt(&buf, Int32(6))
+        
+        
+        case .levenshtein:
+            writeInt(&buf, Int32(7))
+        
+        
+        case .damerauLevenshtein:
+            writeInt(&buf, Int32(8))
         
         }
     }

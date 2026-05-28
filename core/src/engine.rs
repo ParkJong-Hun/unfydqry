@@ -272,6 +272,119 @@ mod tests {
     }
 
     #[test]
+    fn suffix_strategy_matches_only_trailing() {
+        let e = fresh_with(EngineConfig {
+            normalize: NormalizeProfile::Loose,
+            strategy: SearchStrategy::Suffix,
+        });
+        e.index(1, "tokyo tower".into()).unwrap();
+        e.index(2, "tower crane".into()).unwrap();
+        // Only the doc that ENDS with "tower" matches; mid-string "tower" must not.
+        let ids: Vec<i64> = e
+            .search("tower".into(), 10)
+            .unwrap()
+            .iter()
+            .map(|h| h.id)
+            .collect();
+        assert_eq!(ids, vec![1]);
+    }
+
+    #[test]
+    fn all_terms_strategy_requires_every_term_any_order() {
+        let e = fresh_with(EngineConfig {
+            normalize: NormalizeProfile::Loose,
+            strategy: SearchStrategy::AllTerms,
+        });
+        e.index(1, "tokyo sky tree".into()).unwrap();
+        e.index(2, "tokyo tower".into()).unwrap();
+        e.index(3, "sky high".into()).unwrap();
+        // "sky tokyo": both terms present in doc 1 (order-independent); doc 2 lacks
+        // "sky", doc 3 lacks "tokyo".
+        let ids: Vec<i64> = e
+            .search("sky tokyo".into(), 10)
+            .unwrap()
+            .iter()
+            .map(|h| h.id)
+            .collect();
+        assert_eq!(ids, vec![1]);
+        // Contrast with Substring, which would need the literal run "sky tokyo".
+        let sub = fresh_with(EngineConfig {
+            normalize: NormalizeProfile::Loose,
+            strategy: SearchStrategy::Substring,
+        });
+        sub.index(1, "tokyo sky tree".into()).unwrap();
+        assert!(sub.search("sky tokyo".into(), 10).unwrap().is_empty());
+    }
+
+    #[test]
+    fn fuzzy_trigram_tolerates_a_typo_and_ranks_exact_first() {
+        let e = fresh_with(EngineConfig {
+            normalize: NormalizeProfile::Loose,
+            strategy: SearchStrategy::FuzzyTrigram,
+        });
+        e.index(1, "international".into()).unwrap();
+        e.index(2, "supercalifragilistic".into()).unwrap();
+        // One-character typo ("...nai" instead of "...nal") still finds doc 1,
+        // and the unrelated doc shares no trigrams so it is filtered out.
+        let ids: Vec<i64> = e
+            .search("internationai".into(), 10)
+            .unwrap()
+            .iter()
+            .map(|h| h.id)
+            .collect();
+        assert_eq!(ids, vec![1]);
+        // An exact query scores 0.0 (similarity 1.0).
+        let exact = e.search("international".into(), 10).unwrap();
+        assert_eq!(exact[0].id, 1);
+        assert!(exact[0].score.abs() < 1e-9);
+    }
+
+    #[test]
+    fn levenshtein_matches_one_char_typo() {
+        let e = fresh_with(EngineConfig {
+            normalize: NormalizeProfile::Loose,
+            strategy: SearchStrategy::Levenshtein,
+        });
+        e.index(1, "tokyo tower".into()).unwrap();
+        e.index(2, "osaka castle".into()).unwrap();
+        // "tokio" is 1 substitution from the word "tokyo"; threshold for a
+        // 5-char query is 1, so it matches doc 1 only.
+        let ids: Vec<i64> = e
+            .search("tokio".into(), 10)
+            .unwrap()
+            .iter()
+            .map(|h| h.id)
+            .collect();
+        assert_eq!(ids, vec![1]);
+    }
+
+    #[test]
+    fn damerau_matches_transposition_that_levenshtein_misses() {
+        // "tokoy" is a single adjacent transposition of "tokyo": OSA distance 1,
+        // plain Levenshtein distance 2. With the 5-char threshold (=1), only the
+        // Damerau strategy matches.
+        let lev = fresh_with(EngineConfig {
+            normalize: NormalizeProfile::Loose,
+            strategy: SearchStrategy::Levenshtein,
+        });
+        lev.index(1, "tokyo tower".into()).unwrap();
+        assert!(lev.search("tokoy".into(), 10).unwrap().is_empty());
+
+        let dl = fresh_with(EngineConfig {
+            normalize: NormalizeProfile::Loose,
+            strategy: SearchStrategy::DamerauLevenshtein,
+        });
+        dl.index(1, "tokyo tower".into()).unwrap();
+        let ids: Vec<i64> = dl
+            .search("tokoy".into(), 10)
+            .unwrap()
+            .iter()
+            .map(|h| h.id)
+            .collect();
+        assert_eq!(ids, vec![1]);
+    }
+
+    #[test]
     fn nfkc_case_fold_keeps_katakana_distinct() {
         let e = fresh_with(EngineConfig {
             normalize: NormalizeProfile::NfkcCaseFold,

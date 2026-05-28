@@ -1671,7 +1671,27 @@ enum class SearchStrategy {
     /**
      * Prefix match (`LIKE 'q%'`) for every query.
      */
-    PREFIX;
+    PREFIX,
+    /**
+     * Suffix match (`LIKE '%q'`) for every query.
+     */
+    SUFFIX,
+    /**
+     * Every whitespace-separated term must appear (substring), order-independent.
+     */
+    ALL_TERMS,
+    /**
+     * Character-trigram set similarity (Jaccard); ranked by 1 − similarity.
+     */
+    FUZZY_TRIGRAM,
+    /**
+     * Typo-tolerant: min Levenshtein distance to any word in the doc.
+     */
+    LEVENSHTEIN,
+    /**
+     * Like `Levenshtein`, but an adjacent transposition counts as one edit.
+     */
+    DAMERAU_LEVENSHTEIN;
     companion object
 }
 
