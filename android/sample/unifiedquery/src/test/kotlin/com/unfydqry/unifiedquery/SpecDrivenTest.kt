@@ -1,6 +1,7 @@
 package com.unfydqry.unifiedquery
 
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertNotEquals
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.Test
@@ -32,6 +33,10 @@ class SpecDrivenTest {
             Spec.normalize.cases.stream().map {
                 Arguments.of(it.id, it.description, it.input, it.expected, it.profile)
             }
+
+        @JvmStatic
+        fun normalizeInequalities(): Stream<Arguments> =
+            Spec.normalize.inequalities.stream().map { Arguments.of(it.id, it) }
 
         @JvmStatic
         fun scenarios(): Stream<Arguments> =
@@ -73,11 +78,38 @@ class SpecDrivenTest {
 
         private fun check(checks: List<Assertion>, engine: SearchEngine, c: ReindexCase, phase: String) {
             for (a in checks) {
-                val got = engine.search(a.search.query, a.search.limit.toUInt()).map { it.id }.toSet()
-                val want = a.expectedIds.toSet()
-                assertEquals(want, got,
-                    "reindex id=${c.id} [$phase]: ${c.description}; " +
-                    "query=\"${a.search.query}\" got=${got.sorted()} want=${want.sorted()}")
+                checkAssertion(engine, a, "reindex id=${c.id} [$phase]: ${c.description}")
+            }
+        }
+
+        /** Runs one assertion's `search` and applies every predicate present on it. */
+        private fun checkAssertion(engine: SearchEngine, a: Assertion, context: String) {
+            val q = a.search.query
+            // A thrown exception fails the test (this also satisfies `expect_no_error`).
+            val hits = engine.search(q, a.search.limit.toUInt())
+
+            a.expectedIds?.let { ids ->
+                val got = hits.map { it.id }.toSet()
+                val want = ids.toSet()
+                assertEquals(want, got, "$context query=\"$q\" got=${got.sorted()} want=${want.sorted()}")
+            }
+            a.expectedCount?.let { count ->
+                assertEquals(count, hits.size, "$context query=\"$q\": expected $count hits, got ${hits.size}")
+            }
+            a.score?.let { kind ->
+                assertTrue(hits.isNotEmpty(), "$context query=\"$q\": score predicate needs at least one hit")
+                for (h in hits) {
+                    when (kind) {
+                        "zero" -> assertEquals(0.0, h.score, "$context query=\"$q\": expected score 0, got ${h.score}")
+                        "nonzero_finite" -> assertTrue(h.score != 0.0 && h.score.isFinite(),
+                            "$context query=\"$q\": expected nonzero finite score, got ${h.score}")
+                        else -> error("$context query=\"$q\": unknown score predicate \"$kind\"")
+                    }
+                }
+            }
+            if (a.scoresNonDecreasing == true) {
+                val scores = hits.map { it.score }
+                assertEquals(scores.sorted(), scores, "$context query=\"$q\": scores not non-decreasing: $scores")
             }
         }
 
@@ -131,7 +163,20 @@ class SpecDrivenTest {
     @ParameterizedTest(name = "{0}: {1}")
     @MethodSource("normalizeCases")
     fun `normalize matches spec`(id: String, description: String, input: String, expected: String, profile: String?) {
-        assertEquals(expected, normalizeWithProfile(input, profile(profile)), "id=$id: $description")
+        val p = profile(profile)
+        assertEquals(expected, normalizeWithProfile(input, p), "id=$id: $description")
+        // Normalization is a fixed point: applying it to its own output is identity.
+        assertEquals(expected, normalizeWithProfile(expected, p), "id=$id not idempotent: $description")
+    }
+
+    @ParameterizedTest(name = "{0}")
+    @MethodSource("normalizeInequalities")
+    fun `normalize inequality holds`(id: String, ineq: NormalizeInequality) {
+        val p = profile(ineq.profile)
+        val na = normalizeWithProfile(ineq.a, p)
+        val nb = normalizeWithProfile(ineq.b, p)
+        assertNotEquals(na, nb,
+            "id=$id: ${ineq.description}; a=\"${ineq.a}\"→\"$na\" b=\"${ineq.b}\"→\"$nb\"")
     }
 
     @ParameterizedTest(name = "{0}")
@@ -140,12 +185,7 @@ class SpecDrivenTest {
         val engine = engine(s.config)
         apply(s.ops, engine)
         for (assertion in s.assertions) {
-            val got = engine.search(assertion.search.query, assertion.search.limit.toUInt())
-                .map { it.id }.toSet()
-            val want = assertion.expectedIds.toSet()
-            assertEquals(want, got,
-                "scenario id=${s.id}: ${s.description}; " +
-                "query=\"${assertion.search.query}\" got=${got.sorted()} want=${want.sorted()}")
+            checkAssertion(engine, assertion, "scenario id=${s.id}: ${s.description}")
         }
     }
 

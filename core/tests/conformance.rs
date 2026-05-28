@@ -15,7 +15,7 @@ use serde::Deserialize;
 
 use unfydqry::{normalize, EngineConfig, NormalizeProfile, SearchEngine, SearchStrategy};
 
-const EXPECTED_VERSION: u32 = 1;
+const EXPECTED_VERSION: u32 = 2;
 
 /// Optional per-case / per-scenario engine configuration. Absent fields fall
 /// back to the original behaviour (loose + trigram_bm25), so existing spec
@@ -93,9 +93,21 @@ struct NormalizeCase {
 }
 
 #[derive(Deserialize)]
+struct NormalizeInequality {
+    id: String,
+    description: String,
+    a: String,
+    b: String,
+    #[serde(default)]
+    profile: Option<String>,
+}
+
+#[derive(Deserialize)]
 struct NormalizeSpec {
     version: u32,
     cases: Vec<NormalizeCase>,
+    #[serde(default)]
+    inequalities: Vec<NormalizeInequality>,
 }
 
 #[test]
@@ -107,11 +119,38 @@ fn normalize_spec_matches() {
     );
     assert!(!spec.cases.is_empty(), "spec/normalize.json had zero cases");
     for c in spec.cases {
-        let got = normalize(&c.input, profile_from(c.profile.as_deref()));
+        let profile = profile_from(c.profile.as_deref());
+        let got = normalize(&c.input, profile);
         assert_eq!(
             got, c.expected,
             "normalize id={}: {}\n  input={:?}\n  got={:?}\n  want={:?}",
             c.id, c.description, c.input, got, c.expected
+        );
+        // Normalization is a fixed point: applying it to its own output is identity.
+        let twice = normalize(&c.expected, profile);
+        assert_eq!(
+            twice, c.expected,
+            "normalize id={} not idempotent: {}\n  expected={:?}\n  normalize(expected)={:?}",
+            c.id, c.description, c.expected, twice
+        );
+    }
+}
+
+#[test]
+fn normalize_inequalities_hold() {
+    let spec: NormalizeSpec = read_spec("normalize");
+    assert!(
+        !spec.inequalities.is_empty(),
+        "spec/normalize.json had zero inequalities"
+    );
+    for ineq in spec.inequalities {
+        let profile = profile_from(ineq.profile.as_deref());
+        let na = normalize(&ineq.a, profile);
+        let nb = normalize(&ineq.b, profile);
+        assert_ne!(
+            na, nb,
+            "normalize inequality id={}: {}\n  a={:?} → {:?}\n  b={:?} → {:?} (must differ)",
+            ineq.id, ineq.description, ineq.a, na, ineq.b, nb
         );
     }
 }
@@ -137,7 +176,17 @@ struct SearchSpec {
 #[derive(Deserialize)]
 struct Assertion {
     search: SearchSpec,
-    expected_ids: Vec<i64>,
+    #[serde(default)]
+    expected_ids: Option<Vec<i64>>,
+    #[serde(default)]
+    expected_count: Option<usize>,
+    #[serde(default)]
+    score: Option<String>,
+    #[serde(default)]
+    scores_non_decreasing: Option<bool>,
+    #[serde(default)]
+    #[allow(dead_code)]
+    expect_no_error: Option<bool>,
 }
 
 #[derive(Deserialize)]
@@ -188,6 +237,63 @@ fn apply_ops(engine: &SearchEngine, ops: &[IndexOp]) {
     }
 }
 
+/// Runs one assertion's `search` and applies every predicate present on it.
+/// `ctx` is a human-readable prefix included in any failure message.
+fn check_assertion(engine: &SearchEngine, a: &Assertion, ctx: &str) {
+    let q = &a.search.query;
+    // A search() error fails the assertion (this also satisfies `expect_no_error`).
+    let hits = engine
+        .search(q.clone(), a.search.limit)
+        .unwrap_or_else(|e| panic!("{ctx} query={q:?}: search errored: {e}"));
+
+    if let Some(ids) = &a.expected_ids {
+        let got: BTreeSet<i64> = hits.iter().map(|h| h.id).collect();
+        let want: BTreeSet<i64> = ids.iter().copied().collect();
+        assert_eq!(
+            got, want,
+            "{ctx} query={q:?}\n  got={got:?}\n  want={want:?}"
+        );
+    }
+    if let Some(count) = a.expected_count {
+        assert_eq!(
+            hits.len(),
+            count,
+            "{ctx} query={q:?}: expected {count} hits, got {}",
+            hits.len()
+        );
+    }
+    if let Some(kind) = &a.score {
+        assert!(
+            !hits.is_empty(),
+            "{ctx} query={q:?}: score predicate needs at least one hit"
+        );
+        for h in &hits {
+            match kind.as_str() {
+                "zero" => assert_eq!(
+                    h.score, 0.0,
+                    "{ctx} query={q:?}: expected score 0, got {}",
+                    h.score
+                ),
+                "nonzero_finite" => assert!(
+                    h.score != 0.0 && h.score.is_finite(),
+                    "{ctx} query={q:?}: expected nonzero finite score, got {}",
+                    h.score
+                ),
+                other => panic!("{ctx} query={q:?}: unknown score predicate {other:?}"),
+            }
+        }
+    }
+    if a.scores_non_decreasing == Some(true) {
+        let scores: Vec<f64> = hits.iter().map(|h| h.score).collect();
+        for w in scores.windows(2) {
+            assert!(
+                w[0] <= w[1],
+                "{ctx} query={q:?}: scores not non-decreasing: {scores:?}"
+            );
+        }
+    }
+}
+
 #[test]
 fn search_scenarios_match() {
     let spec: SearchSpecFile = read_spec("search");
@@ -200,17 +306,9 @@ fn search_scenarios_match() {
     for s in spec.scenarios {
         let engine = engine_for(&s.config);
         apply_ops(&engine, &s.ops);
+        let ctx = format!("scenario id={}: {}", s.id, s.description);
         for a in &s.assertions {
-            let hits = engine
-                .search(a.search.query.clone(), a.search.limit)
-                .expect("search");
-            let got: BTreeSet<i64> = hits.iter().map(|h| h.id).collect();
-            let want: BTreeSet<i64> = a.expected_ids.iter().copied().collect();
-            assert_eq!(
-                got, want,
-                "scenario id={}: {}\n  query={:?}\n  got={:?}\n  want={:?}",
-                s.id, s.description, a.search.query, got, want
-            );
+            check_assertion(&engine, a, &ctx);
         }
     }
 }
@@ -269,17 +367,9 @@ fn assert_searches(
     desc: &str,
     phase: &str,
 ) {
+    let ctx = format!("reindex id={case_id} [{phase}]: {desc}");
     for a in checks {
-        let hits = engine
-            .search(a.search.query.clone(), a.search.limit)
-            .expect("search");
-        let got: BTreeSet<i64> = hits.iter().map(|h| h.id).collect();
-        let want: BTreeSet<i64> = a.expected_ids.iter().copied().collect();
-        assert_eq!(
-            got, want,
-            "reindex id={case_id} [{phase}]: {desc}\n  query={:?}\n  got={:?}\n  want={:?}",
-            a.search.query, got, want
-        );
+        check_assertion(engine, a, &ctx);
     }
 }
 

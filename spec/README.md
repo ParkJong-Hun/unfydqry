@@ -33,9 +33,10 @@ ignores the fields keep working without a `version` bump.
 
 ## Common conventions
 
-Every file has a top-level `version` integer. Loaders should refuse to run if
-this doesn't match the version they were written for — that way a future
-breaking schema change can't silently make tests pass by loading nothing.
+Every file has a top-level `version` integer (currently **2** for all files).
+Loaders should refuse to run if this doesn't match the version they were written
+for — that way a future breaking schema change can't silently make tests pass by
+loading nothing.
 
 Every individual record carries an `id` (or `query` for matrix entries) and a
 **`description`**:
@@ -55,30 +56,47 @@ Every individual record carries an `id` (or `query` for matrix entries) and a
 
 ```jsonc
 {
-  "version": 1,
+  "version": 2,
   "cases": [
     {
       "id": "...",
       "description": "...",
       "input": "<string>",
       "expected": "<string>",
+      "profile": "<optional profile key>",
       "source": "<optional citation>"
+    }
+  ],
+  "inequalities": [
+    {
+      "id": "...",
+      "description": "...",
+      "a": "<string>",
+      "b": "<string>",
+      "profile": "<optional profile key>"
     }
   ]
 }
 ```
 
-Loader pseudocode: for each case, assert `normalizeWithProfile(input, profile ?? loose) == expected`.
+Loader pseudocode:
+
+- For each `cases` entry: assert `normalizeWithProfile(input, profile ?? loose) == expected`,
+  and additionally assert **idempotency** — `normalizeWithProfile(expected, profile) == expected`.
+  (Normalization is a fixed point, so applying it to its own output changes nothing.)
+- For each `inequalities` entry: assert `normalizeWithProfile(a, profile ?? loose) != normalizeWithProfile(b, profile ?? loose)`
+  — pins distinctions that must *not* fold together (e.g. dakuten が vs. unvoiced か).
 
 ### `search.json`
 
 ```jsonc
 {
-  "version": 1,
+  "version": 2,
   "scenarios": [
     {
       "id": "...",
       "description": "...",
+      "config": {"normalize": <profile>, "strategy": <strategy>},  // optional
       "ops": [
         {"op": "index",  "id": <i64>, "text": "<string>"},
         {"op": "remove", "id": <i64>}
@@ -86,7 +104,11 @@ Loader pseudocode: for each case, assert `normalizeWithProfile(input, profile ??
       "assertions": [
         {
           "search": {"query": "<string>", "limit": <u32>},
-          "expected_ids": [<i64>, ...]
+          "expected_ids": [<i64>, ...],     // optional: hit-id set (order-insensitive)
+          "expected_count": <usize>,        // optional: number of hits
+          "score": "zero" | "nonzero_finite", // optional: predicate on every hit's score
+          "scores_non_decreasing": true,    // optional: returned scores are sorted ascending
+          "expect_no_error": true           // optional: assert search() returns without error
         }
       ]
     }
@@ -113,9 +135,20 @@ Loader pseudocode: for each case, assert `normalizeWithProfile(input, profile ??
 
 Loader pseudocode:
 
-- For each scenario: open a fresh in-memory `SearchEngine`, replay `ops` in
-  order, then for each assertion run `search(query, limit)` and compare the
-  hit-id *set* against `expected_ids` (order-insensitive).
+- For each scenario: open a fresh in-memory `SearchEngine` (via `withConfig` when
+  `config` is present, else the default constructor), replay `ops` in order, then
+  for each assertion run `search(query, limit)` and apply **every present
+  predicate** (skip absent ones):
+  - `expected_ids` → the hit-id *set* equals this (order-insensitive).
+  - `expected_count` → the number of hits equals this (used when *which* ids come
+    back isn't spec-stable, e.g. under a `limit`).
+  - `score` → every hit's score is `0.0` (`"zero"`, the unranked LIKE/substring
+    paths) or non-zero and finite (`"nonzero_finite"`, the bm25/fuzzy paths).
+    Exact score values are not spec-stable, only their sign/finiteness.
+  - `scores_non_decreasing` → the returned scores are sorted ascending (ranking order).
+  - `expect_no_error` → `search()` completes without throwing (no further check);
+    used for queries whose result set isn't meaningful (whitespace, FTS5 reserved
+    syntax) but which must not crash.
 - For each seeded_matrix: open a fresh engine, replay the entire `seed`, then
   for each query in `queries` compare hit-ids against `expected_ids` (same
   semantics; `limit` is inherited from the matrix).
@@ -127,7 +160,7 @@ requires `id` only.
 
 ```jsonc
 {
-  "version": 1,
+  "version": 2,
   "cases": [
     {
       "id": "...",
@@ -149,25 +182,23 @@ assert every `after` check. A profile change makes `withConfigRebuilding`
 re-normalize the retained raw text under the new profile, so `before` pins the
 pre-rebuild behaviour and `after` pins the regenerated behaviour. `config_before`
 / `config_after` reuse the same optional shape as `search.json`'s `config`, and
-each `before` / `after` entry reuses the `assertions` shape (`search` +
-`expected_ids`).
+each `before` / `after` entry reuses the full `assertions` shape (the same
+predicate fields documented for `search.json`).
 
 ## What's deliberately *not* here
 
-Tests that don't reduce to `(input → expected)` or `(ops → ids)` stay in the
-native test source on each platform:
+Almost all behaviour now reduces to a spec record: normalization equality,
+inequality, and idempotency; and search by every strategy/profile including
+score sign/finiteness, ranking order, hit count, and non-throwing safety. Only
+the handful of assertions that depend on language-specific runtime primitives
+(not on the engine's input→output contract) stay in native test source:
 
-- Property assertions (`normalize ∘ normalize == normalize`, dakuten-vs-unvoiced
-  inequality)
-- Performance smoke tests (long input doesn't explode)
-- Filesystem lifecycle (temp dirs, persistence across reopen, invalid path
-  throws) — too coupled to each language's I/O and error-type APIs
-- Score sanity / order checks (`bm25 != 0`, ascending) — score values aren't
-  spec-stable
-- Concurrency (`withTaskGroup` / `ExecutorService`) — language-specific
-  primitives
-- Non-throwing safety (FTS5 special characters don't crash) — asserts absence
-  of exception, not equality
+- **Concurrency** (`withTaskGroup` / `ExecutorService`) — asserts thread-safety
+  using each language's threading primitives.
+- **Filesystem lifecycle** (file creation on disk, persistence across reopen,
+  invalid-path throws the platform's error type) — coupled to each language's
+  I/O and error-type APIs.
 
 When in doubt, prefer adding a case to the spec; only fall back to native code
-when the assertion can't be expressed as a plain comparison.
+when the assertion genuinely can't be expressed as a comparison over the
+engine's inputs and outputs.

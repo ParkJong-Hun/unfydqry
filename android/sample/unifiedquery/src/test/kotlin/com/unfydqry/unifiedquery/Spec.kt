@@ -16,7 +16,7 @@ import java.io.File
  * simultaneously.
  */
 object Spec {
-    const val EXPECTED_VERSION: Int = 1
+    const val EXPECTED_VERSION: Int = 2
 
     private val mapper = jacksonObjectMapper()
 
@@ -55,9 +55,19 @@ data class SpecConfig(
     val strategy: String? = null,
 )
 
+/** A pair that must normalize to *distinct* keys (e.g. dakuten が vs. unvoiced か). */
+data class NormalizeInequality(
+    val id: String,
+    val description: String,
+    val a: String,
+    val b: String,
+    val profile: String? = null,
+)
+
 data class NormalizeSpec(
     val version: Int,
     val cases: List<NormalizeCase>,
+    val inequalities: List<NormalizeInequality> = emptyList(),
 )
 
 // search.json
@@ -73,9 +83,17 @@ data class SearchSpec(
     val limit: Long,
 )
 
+/**
+ * One search plus the predicates to assert on its result. Every predicate is
+ * optional; the loader applies whichever are present (see `spec/README.md`).
+ */
 data class Assertion(
     val search: SearchSpec,
-    @JsonProperty("expected_ids") val expectedIds: List<Long>,
+    @JsonProperty("expected_ids") val expectedIds: List<Long>? = null,
+    @JsonProperty("expected_count") val expectedCount: Int? = null,
+    val score: String? = null,
+    @JsonProperty("scores_non_decreasing") val scoresNonDecreasing: Boolean? = null,
+    @JsonProperty("expect_no_error") val expectNoError: Boolean? = null,
 )
 
 data class Scenario(

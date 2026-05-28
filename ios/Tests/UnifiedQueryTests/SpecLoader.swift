@@ -7,7 +7,7 @@ import Foundation
 ///
 /// See `spec/README.md` for the spec's intent and schema.
 enum Spec {
-    static let expectedVersion = 1
+    static let expectedVersion = 2
 
     static let normalize: NormalizeSpec = load("normalize")
     static let search: SearchSpecFile = load("search")
@@ -53,9 +53,19 @@ struct SpecConfig: Decodable, Sendable {
     let strategy: String?
 }
 
+/// A pair that must normalize to *distinct* keys (e.g. dakuten が vs. unvoiced か).
+struct NormalizeInequality: Decodable, Sendable {
+    let id: String
+    let description: String
+    let a: String
+    let b: String
+    let profile: String?
+}
+
 struct NormalizeSpec: Decodable, Sendable {
     let version: Int
     let cases: [NormalizeCase]
+    let inequalities: [NormalizeInequality]
 }
 
 // MARK: - search.json
@@ -72,12 +82,22 @@ struct SearchSpec: Decodable, Sendable {
     let limit: UInt32
 }
 
+/// One search plus the predicates to assert on its result. Every predicate is
+/// optional; the loader applies whichever are present (see `spec/README.md`).
 struct Assertion: Decodable, Sendable {
     let search: SearchSpec
-    let expectedIds: [Int64]
+    let expectedIds: [Int64]?
+    let expectedCount: Int?
+    let score: String?
+    let scoresNonDecreasing: Bool?
+    let expectNoError: Bool?
     enum CodingKeys: String, CodingKey {
         case search
+        case score
         case expectedIds = "expected_ids"
+        case expectedCount = "expected_count"
+        case scoresNonDecreasing = "scores_non_decreasing"
+        case expectNoError = "expect_no_error"
     }
 }
 

@@ -1,5 +1,5 @@
 {
-  "version": 1,
+  "version": 2,
   "cases": [
     {
       "id": "empty",
@@ -227,6 +227,33 @@
       "description": "Under nfkc_case_fold, full-width Latin still folds to lowercase ASCII (only the kana-unification axis is dropped).",
       "input": "Ｐｙｔｈｏｎ",
       "expected": "python",
+      "profile": "nfkc_case_fold"
+    }
+  ],
+  "inequalities": [
+    {
+      "id": "dakuten_vs_unvoiced_loose",
+      "description": "Dakuten is preserved, not folded, so voiced が and unvoiced か normalize to distinct keys under loose.",
+      "a": "が",
+      "b": "か"
+    },
+    {
+      "id": "handakuten_vs_unvoiced_loose",
+      "description": "Handakuten is preserved, so ぱ and は normalize to distinct keys under loose.",
+      "a": "ぱ",
+      "b": "は"
+    },
+    {
+      "id": "dakuten_vs_handakuten_loose",
+      "description": "Dakuten ば and handakuten ぱ are distinct diacritics and must normalize to distinct keys under loose.",
+      "a": "ば",
+      "b": "ぱ"
+    },
+    {
+      "id": "kana_variants_distinct_under_nfkc_case_fold",
+      "description": "Under nfkc_case_fold the kana-unification axis is dropped, so katakana カ and hiragana か normalize to distinct keys.",
+      "a": "カ",
+      "b": "か",
       "profile": "nfkc_case_fold"
     }
   ]

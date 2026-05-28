@@ -1,5 +1,5 @@
 {
-  "version": 1,
+  "version": 2,
   "scenarios": [
     {
       "id": "index_then_search_returns_the_doc",
@@ -263,6 +263,73 @@
       ],
       "assertions": [
         {"search": {"query": "tokoy", "limit": 10}, "expected_ids": [1]}
+      ]
+    },
+    {
+      "id": "like_fallback_path_scores_zero",
+      "description": "A sub-trigram query takes the LIKE fallback path under the default trigram_bm25 strategy, which is unranked: every hit reports score 0.",
+      "ops": [{"op": "index", "id": 1, "text": "がっこう"}],
+      "assertions": [
+        {"search": {"query": "が", "limit": 10}, "expected_ids": [1], "score": "zero"}
+      ]
+    },
+    {
+      "id": "fts5_path_scores_nonzero_finite",
+      "description": "A 3-char query takes the FTS5 trigram path, which is ranked by bm25: hits report a finite, non-zero relevance score.",
+      "ops": [{"op": "index", "id": 1, "text": "がっこう"}],
+      "assertions": [
+        {"search": {"query": "がっこ", "limit": 10}, "expected_ids": [1], "score": "nonzero_finite"}
+      ]
+    },
+    {
+      "id": "bm25_results_are_ordered_ascending",
+      "description": "Under trigram_bm25, results are ordered by bm25 with the most relevant (smallest score) first, so the returned score sequence is non-decreasing. Documents of differing lengths spread the scores. The exact bm25 values are not spec-stable, so only the ordering and count are asserted.",
+      "ops": [
+        {"op": "index", "id": 1, "text": "coffee"},
+        {"op": "index", "id": 2, "text": "coffee coffee coffee coffee coffee"},
+        {"op": "index", "id": 3, "text": "lorem ipsum dolor sit amet lorem ipsum dolor sit amet coffee"}
+      ],
+      "assertions": [
+        {"search": {"query": "coffee", "limit": 10}, "expected_count": 3, "scores_non_decreasing": true}
+      ]
+    },
+    {
+      "id": "limit_caps_hit_count",
+      "description": "limit bounds the number of returned hits. Which specific ids come back when more match than the limit is not spec-stable, so only the count is asserted; limit 0 returns nothing.",
+      "ops": [
+        {"op": "index", "id": 1,  "text": "doc 1 about coffee bean"},
+        {"op": "index", "id": 2,  "text": "doc 2 about coffee bean"},
+        {"op": "index", "id": 3,  "text": "doc 3 about coffee bean"},
+        {"op": "index", "id": 4,  "text": "doc 4 about coffee bean"},
+        {"op": "index", "id": 5,  "text": "doc 5 about coffee bean"},
+        {"op": "index", "id": 6,  "text": "doc 6 about coffee bean"},
+        {"op": "index", "id": 7,  "text": "doc 7 about coffee bean"},
+        {"op": "index", "id": 8,  "text": "doc 8 about coffee bean"}
+      ],
+      "assertions": [
+        {"search": {"query": "coffee", "limit": 5}, "expected_count": 5},
+        {"search": {"query": "coffee", "limit": 0}, "expected_ids": []}
+      ]
+    },
+    {
+      "id": "whitespace_only_query_does_not_error",
+      "description": "A whitespace-only query normalizes to a single space and takes the LIKE path; matching whitespace is meaningless but the call must complete without error.",
+      "ops": [{"op": "index", "id": 1, "text": "anything"}],
+      "assertions": [
+        {"search": {"query": " ", "limit": 10}, "expect_no_error": true}
+      ]
+    },
+    {
+      "id": "fts5_reserved_characters_do_not_error",
+      "description": "FTS5 reserved syntax (AND/OR/NEAR, '*', parentheses, ':') is neutralized by wrapping the query as a phrase, so none of these queries throw.",
+      "ops": [{"op": "index", "id": 1, "text": "alpha beta gamma"}],
+      "assertions": [
+        {"search": {"query": "alpha AND beta",  "limit": 10}, "expect_no_error": true},
+        {"search": {"query": "alpha OR beta",   "limit": 10}, "expect_no_error": true},
+        {"search": {"query": "alpha NEAR beta", "limit": 10}, "expect_no_error": true},
+        {"search": {"query": "alpha*",          "limit": 10}, "expect_no_error": true},
+        {"search": {"query": "(alpha)",         "limit": 10}, "expect_no_error": true},
+        {"search": {"query": "alpha:beta",      "limit": 10}, "expect_no_error": true}
       ]
     }
   ],

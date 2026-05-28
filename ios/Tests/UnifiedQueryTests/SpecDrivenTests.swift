@@ -16,9 +16,21 @@ struct SpecDrivenTests {
 
     @Test(arguments: Spec.normalize.cases)
     func normalizeMatchesSpec(_ c: NormalizeCase) {
-        let got = normalizeWithProfile(input: c.input,
-                                       profile: Self.profile(c.profile))
+        let p = Self.profile(c.profile)
+        let got = normalizeWithProfile(input: c.input, profile: p)
         #expect(got == c.expected, "id=\(c.id): \(c.description)")
+        // Normalization is a fixed point: applying it to its own output is identity.
+        let twice = normalizeWithProfile(input: c.expected, profile: p)
+        #expect(twice == c.expected, "id=\(c.id) not idempotent: \(c.description)")
+    }
+
+    @Test(arguments: Spec.normalize.inequalities)
+    func normalizeInequalityHolds(_ ineq: NormalizeInequality) {
+        let p = Self.profile(ineq.profile)
+        let na = normalizeWithProfile(input: ineq.a, profile: p)
+        let nb = normalizeWithProfile(input: ineq.b, profile: p)
+        #expect(na != nb,
+                "id=\(ineq.id): \(ineq.description); a=\"\(ineq.a)\"→\"\(na)\" b=\"\(ineq.b)\"→\"\(nb)\"")
     }
 
     // MARK: - search.json: scenarios
@@ -32,12 +44,7 @@ struct SpecDrivenTests {
         let engine = try Self.engine(for: s.config)
         try apply(ops: s.ops, to: engine)
         for assertion in s.assertions {
-            let hits = try engine.search(query: assertion.search.query,
-                                         limit: assertion.search.limit)
-            let got = Set(hits.map(\.id))
-            let want = Set(assertion.expectedIds)
-            #expect(got == want,
-                    "scenario id=\(s.id): \(s.description); query=\"\(assertion.search.query)\" got=\(got.sorted()) want=\(want.sorted())")
+            try check(assertion, on: engine, context: "scenario id=\(s.id): \(s.description)")
         }
     }
 
@@ -88,11 +95,42 @@ struct SpecDrivenTests {
 
     private func check(_ checks: [Assertion], on engine: SearchEngine, case c: ReindexCase, phase: String) throws {
         for a in checks {
-            let hits = try engine.search(query: a.search.query, limit: a.search.limit)
+            try check(a, on: engine, context: "reindex id=\(c.id) [\(phase)]: \(c.description)")
+        }
+    }
+
+    /// Runs one assertion's `search` and applies every predicate present on it.
+    private func check(_ a: Assertion, on engine: SearchEngine, context: String) throws {
+        let q = a.search.query
+        // A thrown error fails the test (this also satisfies `expect_no_error`).
+        let hits = try engine.search(query: q, limit: a.search.limit)
+
+        if let ids = a.expectedIds {
             let got = Set(hits.map(\.id))
-            let want = Set(a.expectedIds)
-            #expect(got == want,
-                    "reindex id=\(c.id) [\(phase)]: \(c.description); query=\"\(a.search.query)\" got=\(got.sorted()) want=\(want.sorted())")
+            let want = Set(ids)
+            #expect(got == want, "\(context) query=\"\(q)\" got=\(got.sorted()) want=\(want.sorted())")
+        }
+        if let count = a.expectedCount {
+            #expect(hits.count == count, "\(context) query=\"\(q)\": expected \(count) hits, got \(hits.count)")
+        }
+        if let kind = a.score {
+            #expect(!hits.isEmpty, "\(context) query=\"\(q)\": score predicate needs at least one hit")
+            for h in hits {
+                switch kind {
+                case "zero":
+                    #expect(h.score == 0.0, "\(context) query=\"\(q)\": expected score 0, got \(h.score)")
+                case "nonzero_finite":
+                    #expect(h.score != 0.0 && h.score.isFinite,
+                            "\(context) query=\"\(q)\": expected nonzero finite score, got \(h.score)")
+                default:
+                    Issue.record("\(context) query=\"\(q)\": unknown score predicate \"\(kind)\"")
+                }
+            }
+        }
+        if a.scoresNonDecreasing == true {
+            let scores = hits.map(\.score)
+            #expect(scores == scores.sorted(),
+                    "\(context) query=\"\(q)\": scores not non-decreasing: \(scores)")
         }
     }
 
