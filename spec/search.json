@@ -1,5 +1,5 @@
 {
-  "version": 1,
+  "version": 3,
   "scenarios": [
     {
       "id": "index_then_search_returns_the_doc",
@@ -171,6 +171,183 @@
       "ops": [{"op": "index", "id": 1, "text": "東京タワー"}],
       "assertions": [
         {"search": {"query": "とうきょう", "limit": 10}, "expected_ids": []}
+      ]
+    },
+    {
+      "id": "prefix_strategy_matches_only_leading",
+      "description": "With strategy=prefix, a query matches only documents whose normalized text STARTS with it. 'beta' must not hit a doc where it appears mid-string, unlike the default trigram strategy.",
+      "config": {"strategy": "prefix"},
+      "ops": [
+        {"op": "index", "id": 1, "text": "alpha beta"},
+        {"op": "index", "id": 2, "text": "beta gamma"}
+      ],
+      "assertions": [
+        {"search": {"query": "beta",  "limit": 10}, "expected_ids": [2]},
+        {"search": {"query": "alpha", "limit": 10}, "expected_ids": [1]}
+      ]
+    },
+    {
+      "id": "substring_strategy_matches_short_mid_string",
+      "description": "With strategy=substring, even a 2-char query matches a mid-string occurrence via LIKE (no trigram minimum-length restriction).",
+      "config": {"strategy": "substring"},
+      "ops": [{"op": "index", "id": 1, "text": "abcdef"}],
+      "assertions": [
+        {"search": {"query": "cd", "limit": 10}, "expected_ids": [1]}
+      ]
+    },
+    {
+      "id": "nfkc_case_fold_keeps_kana_distinct",
+      "description": "With normalize=nfkc_case_fold, katakana and hiragana are NOT unified, so a hiragana query must not hit a katakana doc (and vice versa). Width/case are still folded.",
+      "config": {"normalize": "nfkc_case_fold", "strategy": "substring"},
+      "ops": [{"op": "index", "id": 1, "text": "カタカナ"}],
+      "assertions": [
+        {"search": {"query": "かたかな", "limit": 10}, "expected_ids": []},
+        {"search": {"query": "カタカナ", "limit": 10}, "expected_ids": [1]}
+      ]
+    },
+    {
+      "id": "suffix_strategy_matches_only_trailing",
+      "description": "With strategy=suffix, a query matches only documents whose normalized text ENDS with it (LIKE '%q'). Mid-string occurrences must not hit.",
+      "config": {"strategy": "suffix"},
+      "ops": [
+        {"op": "index", "id": 1, "text": "tokyo tower"},
+        {"op": "index", "id": 2, "text": "tower crane"}
+      ],
+      "assertions": [
+        {"search": {"query": "tower", "limit": 10}, "expected_ids": [1]}
+      ]
+    },
+    {
+      "id": "all_terms_strategy_requires_every_term_any_order",
+      "description": "With strategy=all_terms, every whitespace-separated term must appear as a substring, in any order. 'sky tokyo' hits a doc containing both terms regardless of their order; docs missing either term do not.",
+      "config": {"strategy": "all_terms"},
+      "ops": [
+        {"op": "index", "id": 1, "text": "tokyo sky tree"},
+        {"op": "index", "id": 2, "text": "tokyo tower"},
+        {"op": "index", "id": 3, "text": "sky high"}
+      ],
+      "assertions": [
+        {"search": {"query": "sky tokyo", "limit": 10}, "expected_ids": [1]}
+      ]
+    },
+    {
+      "id": "fuzzy_trigram_tolerates_a_typo",
+      "description": "With strategy=fuzzy_trigram, a one-character typo still matches via character-trigram set similarity (Jaccard). An unrelated doc shares no trigrams and is excluded.",
+      "config": {"strategy": "fuzzy_trigram"},
+      "ops": [
+        {"op": "index", "id": 1, "text": "international"},
+        {"op": "index", "id": 2, "text": "supercalifragilistic"}
+      ],
+      "assertions": [
+        {"search": {"query": "internationai", "limit": 10}, "expected_ids": [1]}
+      ]
+    },
+    {
+      "id": "levenshtein_matches_one_char_typo",
+      "description": "With strategy=levenshtein, a query within the length-scaled edit-distance threshold of any word in the doc matches. 'tokio' is one substitution from the word 'tokyo' (threshold 1 for a 5-char query).",
+      "config": {"strategy": "levenshtein"},
+      "ops": [
+        {"op": "index", "id": 1, "text": "tokyo tower"},
+        {"op": "index", "id": 2, "text": "osaka castle"}
+      ],
+      "assertions": [
+        {"search": {"query": "tokio", "limit": 10}, "expected_ids": [1]}
+      ]
+    },
+    {
+      "id": "damerau_matches_adjacent_transposition",
+      "description": "With strategy=damerau_levenshtein, an adjacent transposition counts as a single edit, so 'tokoy' (a swap within 'tokyo') matches within the 5-char threshold of 1; plain levenshtein (distance 2) would not.",
+      "config": {"strategy": "damerau_levenshtein"},
+      "ops": [
+        {"op": "index", "id": 1, "text": "tokyo tower"}
+      ],
+      "assertions": [
+        {"search": {"query": "tokoy", "limit": 10}, "expected_ids": [1]}
+      ]
+    },
+    {
+      "id": "like_fallback_path_scores_zero",
+      "description": "A sub-trigram query takes the LIKE fallback path under the default trigram_bm25 strategy, which is unranked: every hit reports score 0.",
+      "ops": [{"op": "index", "id": 1, "text": "がっこう"}],
+      "assertions": [
+        {"search": {"query": "が", "limit": 10}, "expected_ids": [1], "score": "zero"}
+      ]
+    },
+    {
+      "id": "fts5_path_scores_nonzero_finite",
+      "description": "A 3-char query takes the FTS5 trigram path, which is ranked by bm25: hits report a finite, non-zero relevance score.",
+      "ops": [{"op": "index", "id": 1, "text": "がっこう"}],
+      "assertions": [
+        {"search": {"query": "がっこ", "limit": 10}, "expected_ids": [1], "score": "nonzero_finite"}
+      ]
+    },
+    {
+      "id": "bm25_results_are_ordered_ascending",
+      "description": "Under trigram_bm25, results are ordered by bm25 with the most relevant (smallest score) first, so the returned score sequence is non-decreasing. Documents of differing lengths spread the scores. The exact bm25 values are not spec-stable, so only the ordering and count are asserted.",
+      "ops": [
+        {"op": "index", "id": 1, "text": "coffee"},
+        {"op": "index", "id": 2, "text": "coffee coffee coffee coffee coffee"},
+        {"op": "index", "id": 3, "text": "lorem ipsum dolor sit amet lorem ipsum dolor sit amet coffee"}
+      ],
+      "assertions": [
+        {"search": {"query": "coffee", "limit": 10}, "expected_count": 3, "scores_non_decreasing": true}
+      ]
+    },
+    {
+      "id": "limit_caps_hit_count",
+      "description": "limit bounds the number of returned hits. Which specific ids come back when more match than the limit is not spec-stable, so only the count is asserted; limit 0 returns nothing.",
+      "ops": [
+        {"op": "index", "id": 1,  "text": "doc 1 about coffee bean"},
+        {"op": "index", "id": 2,  "text": "doc 2 about coffee bean"},
+        {"op": "index", "id": 3,  "text": "doc 3 about coffee bean"},
+        {"op": "index", "id": 4,  "text": "doc 4 about coffee bean"},
+        {"op": "index", "id": 5,  "text": "doc 5 about coffee bean"},
+        {"op": "index", "id": 6,  "text": "doc 6 about coffee bean"},
+        {"op": "index", "id": 7,  "text": "doc 7 about coffee bean"},
+        {"op": "index", "id": 8,  "text": "doc 8 about coffee bean"}
+      ],
+      "assertions": [
+        {"search": {"query": "coffee", "limit": 5}, "expected_count": 5},
+        {"search": {"query": "coffee", "limit": 0}, "expected_ids": []}
+      ]
+    },
+    {
+      "id": "whitespace_only_query_does_not_error",
+      "description": "A whitespace-only query normalizes to a single space and takes the LIKE path; matching whitespace is meaningless but the call must complete without error.",
+      "ops": [{"op": "index", "id": 1, "text": "anything"}],
+      "assertions": [
+        {"search": {"query": " ", "limit": 10}, "expect_no_error": true}
+      ]
+    },
+    {
+      "id": "fts5_reserved_characters_do_not_error",
+      "description": "FTS5 reserved syntax (AND/OR/NEAR, '*', parentheses, ':') is neutralized by wrapping the query as a phrase, so none of these queries throw.",
+      "ops": [{"op": "index", "id": 1, "text": "alpha beta gamma"}],
+      "assertions": [
+        {"search": {"query": "alpha AND beta",  "limit": 10}, "expect_no_error": true},
+        {"search": {"query": "alpha OR beta",   "limit": 10}, "expect_no_error": true},
+        {"search": {"query": "alpha NEAR beta", "limit": 10}, "expect_no_error": true},
+        {"search": {"query": "alpha*",          "limit": 10}, "expect_no_error": true},
+        {"search": {"query": "(alpha)",         "limit": 10}, "expect_no_error": true},
+        {"search": {"query": "alpha:beta",      "limit": 10}, "expect_no_error": true}
+      ]
+    },
+    {
+      "id": "options_choonpu_folding_unifies_prolonged_sound",
+      "description": "With composable options {fold_choonpu}, a query carrying a prolonged-sound mark hits a document indexed without one: サーバー finds サーバ. Substring keeps the match deterministic.",
+      "config": {"options": {"fold_choonpu": true}, "strategy": "substring"},
+      "ops": [{"op": "index", "id": 1, "text": "サーバ"}],
+      "assertions": [
+        {"search": {"query": "サーバー", "limit": 10}, "expected_ids": [1]}
+      ]
+    },
+    {
+      "id": "options_diacritic_folding_matches_accentless_query",
+      "description": "With options {lowercase, fold_diacritics}, an accent-free query hits an accented document: cafe finds Café.",
+      "config": {"options": {"lowercase": true, "fold_diacritics": true}, "strategy": "substring"},
+      "ops": [{"op": "index", "id": 1, "text": "Café"}],
+      "assertions": [
+        {"search": {"query": "cafe", "limit": 10}, "expected_ids": [1]}
       ]
     }
   ],

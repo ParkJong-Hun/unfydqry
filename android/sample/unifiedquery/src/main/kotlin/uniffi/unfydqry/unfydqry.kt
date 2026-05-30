@@ -724,6 +724,24 @@ internal interface UniffiForeignFutureCompleteVoid : com.sun.jna.Callback {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 // A JNA Library to expose the extern-C FFI definitions.
 // This is an implementation detail which will be called internally by the public API.
 
@@ -749,13 +767,31 @@ internal interface UniffiLib : Library {
     ): Unit
     fun uniffi_unfydqry_fn_constructor_searchengine_new(`dbPath`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
     ): Pointer
+    fun uniffi_unfydqry_fn_constructor_searchengine_withconfig(`dbPath`: RustBuffer.ByValue,`config`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+    ): Pointer
+    fun uniffi_unfydqry_fn_constructor_searchengine_withconfigrebuilding(`dbPath`: RustBuffer.ByValue,`config`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+    ): Pointer
+    fun uniffi_unfydqry_fn_constructor_searchengine_withoptions(`dbPath`: RustBuffer.ByValue,`config`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+    ): Pointer
+    fun uniffi_unfydqry_fn_constructor_searchengine_withoptionsrebuilding(`dbPath`: RustBuffer.ByValue,`config`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+    ): Pointer
     fun uniffi_unfydqry_fn_method_searchengine_index(`ptr`: Pointer,`id`: Long,`text`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
     ): Unit
+    fun uniffi_unfydqry_fn_method_searchengine_reindex(`ptr`: Pointer,uniffi_out_err: UniffiRustCallStatus, 
+    ): Long
     fun uniffi_unfydqry_fn_method_searchengine_remove(`ptr`: Pointer,`id`: Long,uniffi_out_err: UniffiRustCallStatus, 
     ): Unit
     fun uniffi_unfydqry_fn_method_searchengine_search(`ptr`: Pointer,`query`: RustBuffer.ByValue,`limit`: Int,uniffi_out_err: UniffiRustCallStatus, 
     ): RustBuffer.ByValue
     fun uniffi_unfydqry_fn_func_normalizeloose(`input`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+    ): RustBuffer.ByValue
+    fun uniffi_unfydqry_fn_func_normalizewithoptions(`input`: RustBuffer.ByValue,`options`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+    ): RustBuffer.ByValue
+    fun uniffi_unfydqry_fn_func_normalizewithprofile(`input`: RustBuffer.ByValue,`profile`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+    ): RustBuffer.ByValue
+    fun uniffi_unfydqry_fn_func_reindexstatus(`dbPath`: RustBuffer.ByValue,`config`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+    ): RustBuffer.ByValue
+    fun uniffi_unfydqry_fn_func_reindexstatuswithoptions(`dbPath`: RustBuffer.ByValue,`options`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
     ): RustBuffer.ByValue
     fun ffi_unfydqry_rustbuffer_alloc(`size`: Long,uniffi_out_err: UniffiRustCallStatus, 
     ): RustBuffer.ByValue
@@ -871,13 +907,31 @@ internal interface UniffiLib : Library {
     ): Unit
     fun uniffi_unfydqry_checksum_func_normalizeloose(
     ): Short
+    fun uniffi_unfydqry_checksum_func_normalizewithoptions(
+    ): Short
+    fun uniffi_unfydqry_checksum_func_normalizewithprofile(
+    ): Short
+    fun uniffi_unfydqry_checksum_func_reindexstatus(
+    ): Short
+    fun uniffi_unfydqry_checksum_func_reindexstatuswithoptions(
+    ): Short
     fun uniffi_unfydqry_checksum_method_searchengine_index(
+    ): Short
+    fun uniffi_unfydqry_checksum_method_searchengine_reindex(
     ): Short
     fun uniffi_unfydqry_checksum_method_searchengine_remove(
     ): Short
     fun uniffi_unfydqry_checksum_method_searchengine_search(
     ): Short
     fun uniffi_unfydqry_checksum_constructor_searchengine_new(
+    ): Short
+    fun uniffi_unfydqry_checksum_constructor_searchengine_withconfig(
+    ): Short
+    fun uniffi_unfydqry_checksum_constructor_searchengine_withconfigrebuilding(
+    ): Short
+    fun uniffi_unfydqry_checksum_constructor_searchengine_withoptions(
+    ): Short
+    fun uniffi_unfydqry_checksum_constructor_searchengine_withoptionsrebuilding(
     ): Short
     fun ffi_unfydqry_uniffi_contract_version(
     ): Int
@@ -896,19 +950,46 @@ private fun uniffiCheckContractApiVersion(lib: UniffiLib) {
 
 @Suppress("UNUSED_PARAMETER")
 private fun uniffiCheckApiChecksums(lib: UniffiLib) {
-    if (lib.uniffi_unfydqry_checksum_func_normalizeloose() != 41915.toShort()) {
+    if (lib.uniffi_unfydqry_checksum_func_normalizeloose() != 36363.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if (lib.uniffi_unfydqry_checksum_method_searchengine_index() != 21713.toShort()) {
+    if (lib.uniffi_unfydqry_checksum_func_normalizewithoptions() != 33141.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if (lib.uniffi_unfydqry_checksum_method_searchengine_remove() != 54990.toShort()) {
+    if (lib.uniffi_unfydqry_checksum_func_normalizewithprofile() != 49347.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if (lib.uniffi_unfydqry_checksum_method_searchengine_search() != 52212.toShort()) {
+    if (lib.uniffi_unfydqry_checksum_func_reindexstatus() != 13108.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if (lib.uniffi_unfydqry_checksum_constructor_searchengine_new() != 21833.toShort()) {
+    if (lib.uniffi_unfydqry_checksum_func_reindexstatuswithoptions() != 36594.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if (lib.uniffi_unfydqry_checksum_method_searchengine_index() != 36421.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if (lib.uniffi_unfydqry_checksum_method_searchengine_reindex() != 31136.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if (lib.uniffi_unfydqry_checksum_method_searchengine_remove() != 44114.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if (lib.uniffi_unfydqry_checksum_method_searchengine_search() != 59606.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if (lib.uniffi_unfydqry_checksum_constructor_searchengine_new() != 487.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if (lib.uniffi_unfydqry_checksum_constructor_searchengine_withconfig() != 18262.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if (lib.uniffi_unfydqry_checksum_constructor_searchengine_withconfigrebuilding() != 47325.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if (lib.uniffi_unfydqry_checksum_constructor_searchengine_withoptions() != 4538.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if (lib.uniffi_unfydqry_checksum_constructor_searchengine_withoptionsrebuilding() != 9643.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
 }
@@ -984,6 +1065,29 @@ public object FfiConverterUInt: FfiConverter<UInt, Int> {
 /**
  * @suppress
  */
+public object FfiConverterULong: FfiConverter<ULong, Long> {
+    override fun lift(value: Long): ULong {
+        return value.toULong()
+    }
+
+    override fun read(buf: ByteBuffer): ULong {
+        return lift(buf.getLong())
+    }
+
+    override fun lower(value: ULong): Long {
+        return value.toLong()
+    }
+
+    override fun allocationSize(value: ULong) = 8UL
+
+    override fun write(value: ULong, buf: ByteBuffer) {
+        buf.putLong(value.toLong())
+    }
+}
+
+/**
+ * @suppress
+ */
 public object FfiConverterLong: FfiConverter<Long, Long> {
     override fun lift(value: Long): Long {
         return value
@@ -1024,6 +1128,29 @@ public object FfiConverterDouble: FfiConverter<Double, Double> {
 
     override fun write(value: Double, buf: ByteBuffer) {
         buf.putDouble(value)
+    }
+}
+
+/**
+ * @suppress
+ */
+public object FfiConverterBoolean: FfiConverter<Boolean, Byte> {
+    override fun lift(value: Byte): Boolean {
+        return value.toInt() != 0
+    }
+
+    override fun read(buf: ByteBuffer): Boolean {
+        return lift(buf.get())
+    }
+
+    override fun lower(value: Boolean): Byte {
+        return if (value) 1.toByte() else 0.toByte()
+    }
+
+    override fun allocationSize(value: Boolean) = 1UL
+
+    override fun write(value: Boolean, buf: ByteBuffer) {
+        buf.put(lower(value))
     }
 }
 
@@ -1246,20 +1373,76 @@ private class JavaLangRefCleanable(
 ) : UniffiCleaner.Cleanable {
     override fun clean() = cleanable.clean()
 }
+/**
+ * A persistent full-text search index backed by SQLite.
+ *
+ * Create one with `SearchEngine(dbPath:)` for the default behaviour, or
+ * `SearchEngine.withConfig(dbPath:config:)` to choose a normalization profile
+ * and a search strategy. Add or update documents with `index`, drop them with
+ * `remove`, and query with `search`. The instance is safe to share across
+ * threads.
+ *
+ * The engine stores both the raw host text and its normalized form, so the
+ * index can be regenerated in place after a normalization change — explicitly
+ * via `reindex`, or automatically by opening with
+ * `SearchEngine.withConfigRebuilding(dbPath:config:)`.
+ */
 public interface SearchEngineInterface {
     
     /**
-     * ホストは生テキストを渡すだけ。正規化はエンジン内で実行する。
+     * Adds, or replaces, the document stored under `id`.
+     *
+     * The host passes raw `text`; normalization runs inside the engine, so the
+     * engine's profile is applied identically to indexed text and to queries.
+     * Calling `index` again with an existing `id` overwrites that document.
      */
     fun `index`(`id`: kotlin.Long, `text`: kotlin.String)
     
+    /**
+     * Regenerates the index by re-normalizing every stored document's raw text
+     * with this engine's current profile, then stamps that profile.
+     *
+     * Use this after changing the normalization profile (or its underlying
+     * rules) to bring already-indexed documents back in sync without the host
+     * re-feeding them. Documents indexed before raw text was retained have no
+     * raw to normalize and are skipped. Returns the number of documents
+     * regenerated.
+     */
+    fun `reindex`(): kotlin.ULong
+    
+    /**
+     * Removes the document stored under `id`. A no-op if no such document
+     * exists.
+     */
     fun `remove`(`id`: kotlin.Long)
     
+    /**
+     * Searches the index and returns at most `limit` hits.
+     *
+     * The `query` is normalized with the engine's profile and then matched
+     * using the engine's strategy. A query that is empty — or only whitespace
+     * once normalized — returns no hits. Ordering and scoring depend on the
+     * strategy (see `Hit.score`).
+     */
     fun `search`(`query`: kotlin.String, `limit`: kotlin.UInt): List<Hit>
     
     companion object
 }
 
+/**
+ * A persistent full-text search index backed by SQLite.
+ *
+ * Create one with `SearchEngine(dbPath:)` for the default behaviour, or
+ * `SearchEngine.withConfig(dbPath:config:)` to choose a normalization profile
+ * and a search strategy. Add or update documents with `index`, drop them with
+ * `remove`, and query with `search`. The instance is safe to share across
+ * threads.
+ *
+ * The engine stores both the raw host text and its normalized form, so the
+ * index can be regenerated in place after a normalization change — explicitly
+ * via `reindex`, or automatically by opening with
+ * `SearchEngine.withConfigRebuilding(dbPath:config:)`.
+ */
 open class SearchEngine: Disposable, AutoCloseable, SearchEngineInterface {
 
     constructor(pointer: Pointer) {
@@ -1277,6 +1460,10 @@ open class SearchEngine: Disposable, AutoCloseable, SearchEngineInterface {
         this.pointer = null
         this.cleanable = UniffiLib.CLEANER.register(this, UniffiCleanAction(pointer))
     }
+    /**
+     * Opens the index with the default behaviour (loose normalization +
+     * trigram/bm25). Kept for backward compatibility.
+     */
     constructor(`dbPath`: kotlin.String) :
         this(
     uniffiRustCallWithError(SearchException) { _status ->
@@ -1350,7 +1537,11 @@ open class SearchEngine: Disposable, AutoCloseable, SearchEngineInterface {
 
     
     /**
-     * ホストは生テキストを渡すだけ。正規化はエンジン内で実行する。
+     * Adds, or replaces, the document stored under `id`.
+     *
+     * The host passes raw `text`; normalization runs inside the engine, so the
+     * engine's profile is applied identically to indexed text and to queries.
+     * Calling `index` again with an existing `id` overwrites that document.
      */
     @Throws(SearchException::class)override fun `index`(`id`: kotlin.Long, `text`: kotlin.String)
         = 
@@ -1364,6 +1555,33 @@ open class SearchEngine: Disposable, AutoCloseable, SearchEngineInterface {
     
 
     
+    /**
+     * Regenerates the index by re-normalizing every stored document's raw text
+     * with this engine's current profile, then stamps that profile.
+     *
+     * Use this after changing the normalization profile (or its underlying
+     * rules) to bring already-indexed documents back in sync without the host
+     * re-feeding them. Documents indexed before raw text was retained have no
+     * raw to normalize and are skipped. Returns the number of documents
+     * regenerated.
+     */
+    @Throws(SearchException::class)override fun `reindex`(): kotlin.ULong {
+            return FfiConverterULong.lift(
+    callWithPointer {
+    uniffiRustCallWithError(SearchException) { _status ->
+    UniffiLib.INSTANCE.uniffi_unfydqry_fn_method_searchengine_reindex(
+        it, _status)
+}
+    }
+    )
+    }
+    
+
+    
+    /**
+     * Removes the document stored under `id`. A no-op if no such document
+     * exists.
+     */
     @Throws(SearchException::class)override fun `remove`(`id`: kotlin.Long)
         = 
     callWithPointer {
@@ -1376,6 +1594,14 @@ open class SearchEngine: Disposable, AutoCloseable, SearchEngineInterface {
     
 
     
+    /**
+     * Searches the index and returns at most `limit` hits.
+     *
+     * The `query` is normalized with the engine's profile and then matched
+     * using the engine's strategy. A query that is empty — or only whitespace
+     * once normalized — returns no hits. Ordering and scoring depend on the
+     * strategy (see `Hit.score`).
+     */
     @Throws(SearchException::class)override fun `search`(`query`: kotlin.String, `limit`: kotlin.UInt): List<Hit> {
             return FfiConverterSequenceTypeHit.lift(
     callWithPointer {
@@ -1391,8 +1617,83 @@ open class SearchEngine: Disposable, AutoCloseable, SearchEngineInterface {
     
 
     
+    companion object {
+        
+    /**
+     * Opens the index with a host-selected combination of normalization
+     * profile and search strategy.
+     *
+     * If the index already holds documents normalized under a *different*
+     * profile, this returns `ConfigMismatch` rather than silently mixing
+     * profiles. To regenerate the index under the new profile instead of
+     * failing, open with `withConfigRebuilding`, or call `reindex` on an
+     * engine opened with the matching profile.
+     */
+    @Throws(SearchException::class) fun `withConfig`(`dbPath`: kotlin.String, `config`: EngineConfig): SearchEngine {
+            return FfiConverterTypeSearchEngine.lift(
+    uniffiRustCallWithError(SearchException) { _status ->
+    UniffiLib.INSTANCE.uniffi_unfydqry_fn_constructor_searchengine_withconfig(
+        FfiConverterString.lower(`dbPath`),FfiConverterTypeEngineConfig.lower(`config`),_status)
+}
+    )
+    }
     
-    companion object
+
+        
+    /**
+     * Opens the index under `config`, regenerating it in place when the stored
+     * documents were normalized under a different profile.
+     *
+     * Unlike `withConfig`, a profile change is not an error here: the engine
+     * re-normalizes every stored document from its retained raw text under the
+     * new profile before returning. Documents indexed before raw text was
+     * retained cannot be regenerated and are left untouched.
+     */
+    @Throws(SearchException::class) fun `withConfigRebuilding`(`dbPath`: kotlin.String, `config`: EngineConfig): SearchEngine {
+            return FfiConverterTypeSearchEngine.lift(
+    uniffiRustCallWithError(SearchException) { _status ->
+    UniffiLib.INSTANCE.uniffi_unfydqry_fn_constructor_searchengine_withconfigrebuilding(
+        FfiConverterString.lower(`dbPath`),FfiConverterTypeEngineConfig.lower(`config`),_status)
+}
+    )
+    }
+    
+
+        
+    /**
+     * Like `withConfig`, but selects normalization with a composable
+     * `NormalizeOptions` set instead of a named preset. A fingerprint mismatch
+     * with the stored index is a `ConfigMismatch`; use `withOptionsRebuilding`
+     * to regenerate instead.
+     */
+    @Throws(SearchException::class) fun `withOptions`(`dbPath`: kotlin.String, `config`: EngineOptionsConfig): SearchEngine {
+            return FfiConverterTypeSearchEngine.lift(
+    uniffiRustCallWithError(SearchException) { _status ->
+    UniffiLib.INSTANCE.uniffi_unfydqry_fn_constructor_searchengine_withoptions(
+        FfiConverterString.lower(`dbPath`),FfiConverterTypeEngineOptionsConfig.lower(`config`),_status)
+}
+    )
+    }
+    
+
+        
+    /**
+     * Like `withConfigRebuilding`, but selects normalization with a composable
+     * `NormalizeOptions` set. A change in the enabled steps regenerates the
+     * index in place from the retained raw text.
+     */
+    @Throws(SearchException::class) fun `withOptionsRebuilding`(`dbPath`: kotlin.String, `config`: EngineOptionsConfig): SearchEngine {
+            return FfiConverterTypeSearchEngine.lift(
+    uniffiRustCallWithError(SearchException) { _status ->
+    UniffiLib.INSTANCE.uniffi_unfydqry_fn_constructor_searchengine_withoptionsrebuilding(
+        FfiConverterString.lower(`dbPath`),FfiConverterTypeEngineOptionsConfig.lower(`config`),_status)
+}
+    )
+    }
+    
+
+        
+    }
     
 }
 
@@ -1426,8 +1727,108 @@ public object FfiConverterTypeSearchEngine: FfiConverter<SearchEngine, Pointer> 
 
 
 
+/**
+ * The combination the host selects when constructing an engine.
+ */
+data class EngineConfig (
+    /**
+     * How text is normalized at both index and query time.
+     */
+    var `normalize`: NormalizeProfile, 
+    /**
+     * Which query algorithm `SearchEngine.search` uses.
+     */
+    var `strategy`: SearchStrategy
+) {
+    
+    companion object
+}
+
+/**
+ * @suppress
+ */
+public object FfiConverterTypeEngineConfig: FfiConverterRustBuffer<EngineConfig> {
+    override fun read(buf: ByteBuffer): EngineConfig {
+        return EngineConfig(
+            FfiConverterTypeNormalizeProfile.read(buf),
+            FfiConverterTypeSearchStrategy.read(buf),
+        )
+    }
+
+    override fun allocationSize(value: EngineConfig) = (
+            FfiConverterTypeNormalizeProfile.allocationSize(value.`normalize`) +
+            FfiConverterTypeSearchStrategy.allocationSize(value.`strategy`)
+    )
+
+    override fun write(value: EngineConfig, buf: ByteBuffer) {
+            FfiConverterTypeNormalizeProfile.write(value.`normalize`, buf)
+            FfiConverterTypeSearchStrategy.write(value.`strategy`, buf)
+    }
+}
+
+
+
+/**
+ * Like [`EngineConfig`], but selects normalization with a composable
+ * [`NormalizeOptions`] set instead of a named preset. Used by the
+ * `withOptions` / `withOptionsRebuilding` constructors.
+ */
+data class EngineOptionsConfig (
+    /**
+     * The composable normalization steps applied at index and query time.
+     */
+    var `normalize`: NormalizeOptions, 
+    /**
+     * Which query algorithm `SearchEngine.search` uses.
+     */
+    var `strategy`: SearchStrategy
+) {
+    
+    companion object
+}
+
+/**
+ * @suppress
+ */
+public object FfiConverterTypeEngineOptionsConfig: FfiConverterRustBuffer<EngineOptionsConfig> {
+    override fun read(buf: ByteBuffer): EngineOptionsConfig {
+        return EngineOptionsConfig(
+            FfiConverterTypeNormalizeOptions.read(buf),
+            FfiConverterTypeSearchStrategy.read(buf),
+        )
+    }
+
+    override fun allocationSize(value: EngineOptionsConfig) = (
+            FfiConverterTypeNormalizeOptions.allocationSize(value.`normalize`) +
+            FfiConverterTypeSearchStrategy.allocationSize(value.`strategy`)
+    )
+
+    override fun write(value: EngineOptionsConfig, buf: ByteBuffer) {
+            FfiConverterTypeNormalizeOptions.write(value.`normalize`, buf)
+            FfiConverterTypeSearchStrategy.write(value.`strategy`, buf)
+    }
+}
+
+
+
+/**
+ * A single search result: the stable `id` the host indexed under, plus a
+ * relevance `score`.
+ *
+ * The engine returns only ids and scores — never the document text — so the
+ * host re-fetches the full record from its own source-of-truth store.
+ */
 data class Hit (
+    /**
+     * The id the document was indexed under (see `index`).
+     */
     var `id`: kotlin.Long, 
+    /**
+     * Relevance score. For ranked strategies a smaller value is a better
+     * match (bm25 for `trigramBm25`, `1 − similarity` for `fuzzyTrigram`,
+     * edit distance for the Levenshtein strategies). Unranked strategies
+     * (`substring`, `prefix`, `suffix`, `allTerms`) always report `0.0`.
+     */
     var `score`: kotlin.Double
 ) {
     
@@ -1458,16 +1859,215 @@ public object FfiConverterTypeHit: FfiConverterRustBuffer<Hit> {
 
 
 
+/**
+ * A composable set of normalization steps, all opt-in on top of the always-on
+ * NFKC foundation. The engine applies the enabled steps in a fixed canonical
+ * order (see `normalize/mod.rs`), so any combination is deterministic and
+ * identical across platforms.
+ */
+data class NormalizeOptions (
+    /**
+     * Fold case via `char::to_lowercase`.
+     */
+    var `lowercase`: kotlin.Boolean = false, 
+    /**
+     * Map katakana to hiragana (カ → か); dakuten stays distinct.
+     */
+    var `kanaFold`: kotlin.Boolean = false, 
+    /**
+     * Strip Latin/Western combining diacritics (café → cafe).
+     */
+    var `foldDiacritics`: kotlin.Boolean = false, 
+    /**
+     * Fold the prolonged-sound mark after kana (サーバー → サーバ).
+     */
+    var `foldChoonpu`: kotlin.Boolean = false, 
+    /**
+     * Expand iteration marks (時々 → 時時, こゞ → こご).
+     */
+    var `expandIterationMarks`: kotlin.Boolean = false, 
+    /**
+     * Unify the dash/hyphen family to ASCII `-`.
+     */
+    var `normalizeHyphens`: kotlin.Boolean = false, 
+    /**
+     * Remove digit-grouping commas (1,000 → 1000).
+     */
+    var `stripDigitGrouping`: kotlin.Boolean = false, 
+    /**
+     * Collapse whitespace runs to a single space and trim.
+     */
+    var `collapseWhitespace`: kotlin.Boolean = false
+) {
+    
+    companion object
+}
+
+/**
+ * @suppress
+ */
+public object FfiConverterTypeNormalizeOptions: FfiConverterRustBuffer<NormalizeOptions> {
+    override fun read(buf: ByteBuffer): NormalizeOptions {
+        return NormalizeOptions(
+            FfiConverterBoolean.read(buf),
+            FfiConverterBoolean.read(buf),
+            FfiConverterBoolean.read(buf),
+            FfiConverterBoolean.read(buf),
+            FfiConverterBoolean.read(buf),
+            FfiConverterBoolean.read(buf),
+            FfiConverterBoolean.read(buf),
+            FfiConverterBoolean.read(buf),
+        )
+    }
+
+    override fun allocationSize(value: NormalizeOptions) = (
+            FfiConverterBoolean.allocationSize(value.`lowercase`) +
+            FfiConverterBoolean.allocationSize(value.`kanaFold`) +
+            FfiConverterBoolean.allocationSize(value.`foldDiacritics`) +
+            FfiConverterBoolean.allocationSize(value.`foldChoonpu`) +
+            FfiConverterBoolean.allocationSize(value.`expandIterationMarks`) +
+            FfiConverterBoolean.allocationSize(value.`normalizeHyphens`) +
+            FfiConverterBoolean.allocationSize(value.`stripDigitGrouping`) +
+            FfiConverterBoolean.allocationSize(value.`collapseWhitespace`)
+    )
+
+    override fun write(value: NormalizeOptions, buf: ByteBuffer) {
+            FfiConverterBoolean.write(value.`lowercase`, buf)
+            FfiConverterBoolean.write(value.`kanaFold`, buf)
+            FfiConverterBoolean.write(value.`foldDiacritics`, buf)
+            FfiConverterBoolean.write(value.`foldChoonpu`, buf)
+            FfiConverterBoolean.write(value.`expandIterationMarks`, buf)
+            FfiConverterBoolean.write(value.`normalizeHyphens`, buf)
+            FfiConverterBoolean.write(value.`stripDigitGrouping`, buf)
+            FfiConverterBoolean.write(value.`collapseWhitespace`, buf)
+    }
+}
 
 
+
+/**
+ * Which normalization pipeline runs at index and query time.
+ *
+ * `Loose` is the original behaviour (NFKC → katakana→hiragana → lowercase).
+ */
+
+enum class NormalizeProfile {
+    
+    /**
+     * The original behaviour: NFKC, then katakana→hiragana, then lowercase,
+     * so case, width, and kana variant all fold together.
+     */
+    LOOSE,
+    /**
+     * NFKC + lowercase only; kana variants are kept distinct.
+     */
+    NFKC_CASE_FOLD;
+    companion object
+}
+
+
+/**
+ * @suppress
+ */
+public object FfiConverterTypeNormalizeProfile: FfiConverterRustBuffer<NormalizeProfile> {
+    override fun read(buf: ByteBuffer) = try {
+        NormalizeProfile.values()[buf.getInt() - 1]
+    } catch (e: IndexOutOfBoundsException) {
+        throw RuntimeException("invalid enum value, something is very wrong!!", e)
+    }
+
+    override fun allocationSize(value: NormalizeProfile) = 4UL
+
+    override fun write(value: NormalizeProfile, buf: ByteBuffer) {
+        buf.putInt(value.ordinal + 1)
+    }
+}
+
+
+
+
+
+/**
+ * Whether an on-disk index can be queried with a given normalization, or needs
+ * regenerating first. Returned by `reindexStatus` / `reindexStatusWithOptions`.
+ */
+
+enum class ReindexStatus {
+    
+    /**
+     * The index holds no documents; any normalization can be adopted freely
+     * (no regeneration needed — the next `index` call stamps the profile).
+     */
+    EMPTY,
+    /**
+     * The stored documents were already normalized with the requested
+     * profile/options. The index is ready to query as-is.
+     */
+    UP_TO_DATE,
+    /**
+     * The stored documents were normalized under a *different* profile/options.
+     * Querying as-is would return wrong results — regenerate (via `reindex`,
+     * `withConfigRebuilding`, or `withOptionsRebuilding`) before use.
+     */
+    CONFIG_CHANGED;
+    companion object
+}
+
+
+/**
+ * @suppress
+ */
+public object FfiConverterTypeReindexStatus: FfiConverterRustBuffer<ReindexStatus> {
+    override fun read(buf: ByteBuffer) = try {
+        ReindexStatus.values()[buf.getInt() - 1]
+    } catch (e: IndexOutOfBoundsException) {
+        throw RuntimeException("invalid enum value, something is very wrong!!", e)
+    }
+
+    override fun allocationSize(value: ReindexStatus) = 4UL
+
+    override fun write(value: ReindexStatus, buf: ByteBuffer) {
+        buf.putInt(value.ordinal + 1)
+    }
+}
+
+
+
+
+
+
+
+/**
+ * An error surfaced across the FFI boundary by `SearchEngine`.
+ */
 sealed class SearchException: kotlin.Exception() {
     
+    /**
+     * An underlying SQLite / storage failure; the associated string is its
+     * message.
+     */
     class Db(
         
         val v1: kotlin.String
         ) : SearchException() {
         override val message
             get() = "v1=${ v1 }"
+    }
+    
+    /**
+     * The on-disk index was built with a different normalization profile
+     * than the one requested. Indexed text is profile-specific, so the index
+     * must be rebuilt to change profiles. `stored` is the profile recorded in
+     * the index; `requested` is the one just asked for.
+     */
+    class ConfigMismatch(
+        
+        val `stored`: kotlin.String, 
+        
+        val `requested`: kotlin.String
+        ) : SearchException() {
+        override val message
+            get() = "stored=${ `stored` }, requested=${ `requested` }"
     }
     
 
@@ -1489,6 +2089,10 @@ public object FfiConverterTypeSearchError : FfiConverterRustBuffer<SearchExcepti
             1 -> SearchException.Db(
                 FfiConverterString.read(buf),
                 )
+            2 -> SearchException.ConfigMismatch(
+                FfiConverterString.read(buf),
+                FfiConverterString.read(buf),
+                )
             else -> throw RuntimeException("invalid error enum value, something is very wrong!!")
         }
     }
@@ -1500,6 +2104,12 @@ public object FfiConverterTypeSearchError : FfiConverterRustBuffer<SearchExcepti
                 4UL
                 + FfiConverterString.allocationSize(value.v1)
             )
+            is SearchException.ConfigMismatch -> (
+                // Add the size for the Int that specifies the variant plus the size needed for all fields
+                4UL
+                + FfiConverterString.allocationSize(value.`stored`)
+                + FfiConverterString.allocationSize(value.`requested`)
+            )
         }
     }
 
@@ -1510,10 +2120,79 @@ public object FfiConverterTypeSearchError : FfiConverterRustBuffer<SearchExcepti
                 FfiConverterString.write(value.v1, buf)
                 Unit
             }
+            is SearchException.ConfigMismatch -> {
+                buf.putInt(2)
+                FfiConverterString.write(value.`stored`, buf)
+                FfiConverterString.write(value.`requested`, buf)
+                Unit
+            }
         }.let { /* this makes the `when` an expression, which ensures it is exhaustive */ }
     }
 
 }
+
+
+
+/**
+ * Which query algorithm `SearchEngine::search` uses.
+ */
+
+enum class SearchStrategy {
+    
+    /**
+     * Trigram FTS5 + bm25, with a LIKE fallback for queries shorter than 3 chars.
+     */
+    TRIGRAM_BM25,
+    /**
+     * Substring match (`LIKE '%q%'`) for every query.
+     */
+    SUBSTRING,
+    /**
+     * Prefix match (`LIKE 'q%'`) for every query.
+     */
+    PREFIX,
+    /**
+     * Suffix match (`LIKE '%q'`) for every query.
+     */
+    SUFFIX,
+    /**
+     * Every whitespace-separated term must appear (substring), order-independent.
+     */
+    ALL_TERMS,
+    /**
+     * Character-trigram set similarity (Jaccard); ranked by 1 − similarity.
+     */
+    FUZZY_TRIGRAM,
+    /**
+     * Typo-tolerant: min Levenshtein distance to any word in the doc.
+     */
+    LEVENSHTEIN,
+    /**
+     * Like `Levenshtein`, but an adjacent transposition counts as one edit.
+     */
+    DAMERAU_LEVENSHTEIN;
+    companion object
+}
+
+
+/**
+ * @suppress
+ */
+public object FfiConverterTypeSearchStrategy: FfiConverterRustBuffer<SearchStrategy> {
+    override fun read(buf: ByteBuffer) = try {
+        SearchStrategy.values()[buf.getInt() - 1]
+    } catch (e: IndexOutOfBoundsException) {
+        throw RuntimeException("invalid enum value, something is very wrong!!", e)
+    }
+
+    override fun allocationSize(value: SearchStrategy) = 4UL
+
+    override fun write(value: SearchStrategy, buf: ByteBuffer) {
+        buf.putInt(value.ordinal + 1)
+    }
+}
+
+
 
 
 
@@ -1543,12 +2222,72 @@ public object FfiConverterSequenceTypeHit: FfiConverterRustBuffer<List<Hit>> {
     }
 }
         /**
-         * 検査・デバッグ用に正規化結果を取り出せるよう FFI でも公開する。
+         * Returns `input` normalized with the default `loose` profile (NFKC, then
+         * katakana→hiragana, then lowercase).
+         *
+         * This is the same normalization the engine applies to indexed text and
+         * queries by default; exposed so a host can preview or debug how a string
+         * will be folded before searching.
          */ fun `normalizeLoose`(`input`: kotlin.String): kotlin.String {
             return FfiConverterString.lift(
     uniffiRustCall() { _status ->
     UniffiLib.INSTANCE.uniffi_unfydqry_fn_func_normalizeloose(
         FfiConverterString.lower(`input`),_status)
+}
+    )
+    }
+    
+
+        /**
+         * Normalizes `input` with a composable `NormalizeOptions` set — the same
+         * transform the engine applies when opened via `withOptions`. Exposed so a
+         * host can preview how a string folds under a given combination of steps.
+         */ fun `normalizeWithOptions`(`input`: kotlin.String, `options`: NormalizeOptions): kotlin.String {
+            return FfiConverterString.lift(
+    uniffiRustCall() { _status ->
+    UniffiLib.INSTANCE.uniffi_unfydqry_fn_func_normalizewithoptions(
+        FfiConverterString.lower(`input`),FfiConverterTypeNormalizeOptions.lower(`options`),_status)
+}
+    )
+    }
+    
+
+        /**
+         * Like `normalizeLoose`, but lets the caller pick the normalization profile.
+         */ fun `normalizeWithProfile`(`input`: kotlin.String, `profile`: NormalizeProfile): kotlin.String {
+            return FfiConverterString.lift(
+    uniffiRustCall() { _status ->
+    UniffiLib.INSTANCE.uniffi_unfydqry_fn_func_normalizewithprofile(
+        FfiConverterString.lower(`input`),FfiConverterTypeNormalizeProfile.lower(`profile`),_status)
+}
+    )
+    }
+    
+
+        /**
+         * Whether the index at `db_path` needs regenerating to be used with `config`'s
+         * normalization profile. Lets a host decide between `withConfig` (when
+         * `UpToDate`/`Empty`) and `withConfigRebuilding` / `reindex` (when
+         * `ConfigChanged`) without first triggering a `ConfigMismatch` error.
+         */
+    @Throws(SearchException::class) fun `reindexStatus`(`dbPath`: kotlin.String, `config`: EngineConfig): ReindexStatus {
+            return FfiConverterTypeReindexStatus.lift(
+    uniffiRustCallWithError(SearchException) { _status ->
+    UniffiLib.INSTANCE.uniffi_unfydqry_fn_func_reindexstatus(
+        FfiConverterString.lower(`dbPath`),FfiConverterTypeEngineConfig.lower(`config`),_status)
+}
+    )
+    }
+    
+
+        /**
+         * Like `reindexStatus`, but for a composable `NormalizeOptions` set.
+         */
+    @Throws(SearchException::class) fun `reindexStatusWithOptions`(`dbPath`: kotlin.String, `options`: NormalizeOptions): ReindexStatus {
+            return FfiConverterTypeReindexStatus.lift(
+    uniffiRustCallWithError(SearchException) { _status ->
+    UniffiLib.INSTANCE.uniffi_unfydqry_fn_func_reindexstatuswithoptions(
+        FfiConverterString.lower(`dbPath`),FfiConverterTypeNormalizeOptions.lower(`options`),_status)
 }
     )
     }

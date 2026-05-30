@@ -415,6 +415,22 @@ fileprivate struct FfiConverterUInt32: FfiConverterPrimitive {
 #if swift(>=5.8)
 @_documentation(visibility: private)
 #endif
+fileprivate struct FfiConverterUInt64: FfiConverterPrimitive {
+    typealias FfiType = UInt64
+    typealias SwiftType = UInt64
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> UInt64 {
+        return try lift(readInt(&buf))
+    }
+
+    public static func write(_ value: SwiftType, into buf: inout [UInt8]) {
+        writeInt(&buf, lower(value))
+    }
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
 fileprivate struct FfiConverterInt64: FfiConverterPrimitive {
     typealias FfiType = Int64
     typealias SwiftType = Int64
@@ -441,6 +457,30 @@ fileprivate struct FfiConverterDouble: FfiConverterPrimitive {
 
     public static func write(_ value: Double, into buf: inout [UInt8]) {
         writeDouble(&buf, lower(value))
+    }
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+fileprivate struct FfiConverterBool : FfiConverter {
+    typealias FfiType = Int8
+    typealias SwiftType = Bool
+
+    public static func lift(_ value: Int8) throws -> Bool {
+        return value != 0
+    }
+
+    public static func lower(_ value: Bool) -> Int8 {
+        return value ? 1 : 0
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> Bool {
+        return try lift(readInt(&buf))
+    }
+
+    public static func write(_ value: Bool, into buf: inout [UInt8]) {
+        writeInt(&buf, lower(value))
     }
 }
 
@@ -488,19 +528,75 @@ fileprivate struct FfiConverterString: FfiConverter {
 
 
 
+/**
+ * A persistent full-text search index backed by SQLite.
+ *
+ * Create one with `SearchEngine(dbPath:)` for the default behaviour, or
+ * `SearchEngine.withConfig(dbPath:config:)` to choose a normalization profile
+ * and a search strategy. Add or update documents with `index`, drop them with
+ * `remove`, and query with `search`. The instance is safe to share across
+ * threads.
+ *
+ * The engine stores both the raw host text and its normalized form, so the
+ * index can be regenerated in place after a normalization change — explicitly
+ * via `reindex`, or automatically by opening with
+ * `SearchEngine.withConfigRebuilding(dbPath:config:)`.
+ */
 public protocol SearchEngineProtocol : AnyObject {
     
     /**
-     * ホストは生テキストを渡すだけ。正規化はエンジン内で実行する。
+     * Adds, or replaces, the document stored under `id`.
+     *
+     * The host passes raw `text`; normalization runs inside the engine, so the
+     * engine's profile is applied identically to indexed text and to queries.
+     * Calling `index` again with an existing `id` overwrites that document.
      */
     func index(id: Int64, text: String) throws 
     
+    /**
+     * Regenerates the index by re-normalizing every stored document's raw text
+     * with this engine's current profile, then stamps that profile.
+     *
+     * Use this after changing the normalization profile (or its underlying
+     * rules) to bring already-indexed documents back in sync without the host
+     * re-feeding them. Documents indexed before raw text was retained have no
+     * raw to normalize and are skipped. Returns the number of documents
+     * regenerated.
+     */
+    func reindex() throws  -> UInt64
+    
+    /**
+     * Removes the document stored under `id`. A no-op if no such document
+     * exists.
+     */
     func remove(id: Int64) throws 
     
+    /**
+     * Searches the index and returns at most `limit` hits.
+     *
+     * The `query` is normalized with the engine's profile and then matched
+     * using the engine's strategy. A query that is empty — or only whitespace
+     * once normalized — returns no hits. Ordering and scoring depend on the
+     * strategy (see `Hit.score`).
+     */
     func search(query: String, limit: UInt32) throws  -> [Hit]
     
 }
 
+/**
+ * A persistent full-text search index backed by SQLite.
+ *
+ * Create one with `SearchEngine(dbPath:)` for the default behaviour, or
+ * `SearchEngine.withConfig(dbPath:config:)` to choose a normalization profile
+ * and a search strategy. Add or update documents with `index`, drop them with
+ * `remove`, and query with `search`. The instance is safe to share across
+ * threads.
+ *
+ * The engine stores both the raw host text and its normalized form, so the
+ * index can be regenerated in place after a normalization change — explicitly
+ * via `reindex`, or automatically by opening with
+ * `SearchEngine.withConfigRebuilding(dbPath:config:)`.
+ */
 open class SearchEngine:
     SearchEngineProtocol {
     fileprivate let pointer: UnsafeMutableRawPointer!
@@ -538,6 +634,10 @@ open class SearchEngine:
     public func uniffiClonePointer() -> UnsafeMutableRawPointer {
         return try! rustCall { uniffi_unfydqry_fn_clone_searchengine(self.pointer, $0) }
     }
+    /**
+     * Opens the index with the default behaviour (loose normalization +
+     * trigram/bm25). Kept for backward compatibility.
+     */
 public convenience init(dbPath: String)throws  {
     let pointer =
         try rustCallWithError(FfiConverterTypeSearchError.lift) {
@@ -557,10 +657,80 @@ public convenience init(dbPath: String)throws  {
     }
 
     
+    /**
+     * Opens the index with a host-selected combination of normalization
+     * profile and search strategy.
+     *
+     * If the index already holds documents normalized under a *different*
+     * profile, this returns `ConfigMismatch` rather than silently mixing
+     * profiles. To regenerate the index under the new profile instead of
+     * failing, open with `withConfigRebuilding`, or call `reindex` on an
+     * engine opened with the matching profile.
+     */
+public static func withConfig(dbPath: String, config: EngineConfig)throws  -> SearchEngine {
+    return try  FfiConverterTypeSearchEngine.lift(try rustCallWithError(FfiConverterTypeSearchError.lift) {
+    uniffi_unfydqry_fn_constructor_searchengine_withconfig(
+        FfiConverterString.lower(dbPath),
+        FfiConverterTypeEngineConfig.lower(config),$0
+    )
+})
+}
+    
+    /**
+     * Opens the index under `config`, regenerating it in place when the stored
+     * documents were normalized under a different profile.
+     *
+     * Unlike `withConfig`, a profile change is not an error here: the engine
+     * re-normalizes every stored document from its retained raw text under the
+     * new profile before returning. Documents indexed before raw text was
+     * retained cannot be regenerated and are left untouched.
+     */
+public static func withConfigRebuilding(dbPath: String, config: EngineConfig)throws  -> SearchEngine {
+    return try  FfiConverterTypeSearchEngine.lift(try rustCallWithError(FfiConverterTypeSearchError.lift) {
+    uniffi_unfydqry_fn_constructor_searchengine_withconfigrebuilding(
+        FfiConverterString.lower(dbPath),
+        FfiConverterTypeEngineConfig.lower(config),$0
+    )
+})
+}
+    
+    /**
+     * Like `withConfig`, but selects normalization with a composable
+     * `NormalizeOptions` set instead of a named preset. A fingerprint mismatch
+     * with the stored index is a `ConfigMismatch`; use `withOptionsRebuilding`
+     * to regenerate instead.
+     */
+public static func withOptions(dbPath: String, config: EngineOptionsConfig)throws  -> SearchEngine {
+    return try  FfiConverterTypeSearchEngine.lift(try rustCallWithError(FfiConverterTypeSearchError.lift) {
+    uniffi_unfydqry_fn_constructor_searchengine_withoptions(
+        FfiConverterString.lower(dbPath),
+        FfiConverterTypeEngineOptionsConfig.lower(config),$0
+    )
+})
+}
+    
+    /**
+     * Like `withConfigRebuilding`, but selects normalization with a composable
+     * `NormalizeOptions` set. A change in the enabled steps regenerates the
+     * index in place from the retained raw text.
+     */
+public static func withOptionsRebuilding(dbPath: String, config: EngineOptionsConfig)throws  -> SearchEngine {
+    return try  FfiConverterTypeSearchEngine.lift(try rustCallWithError(FfiConverterTypeSearchError.lift) {
+    uniffi_unfydqry_fn_constructor_searchengine_withoptionsrebuilding(
+        FfiConverterString.lower(dbPath),
+        FfiConverterTypeEngineOptionsConfig.lower(config),$0
+    )
+})
+}
+    
 
     
     /**
-     * ホストは生テキストを渡すだけ。正規化はエンジン内で実行する。
+     * Adds, or replaces, the document stored under `id`.
+     *
+     * The host passes raw `text`; normalization runs inside the engine, so the
+     * engine's profile is applied identically to indexed text and to queries.
+     * Calling `index` again with an existing `id` overwrites that document.
      */
 open func index(id: Int64, text: String)throws  {try rustCallWithError(FfiConverterTypeSearchError.lift) {
     uniffi_unfydqry_fn_method_searchengine_index(self.uniffiClonePointer(),
@@ -570,6 +740,27 @@ open func index(id: Int64, text: String)throws  {try rustCallWithError(FfiConver
 }
 }
     
+    /**
+     * Regenerates the index by re-normalizing every stored document's raw text
+     * with this engine's current profile, then stamps that profile.
+     *
+     * Use this after changing the normalization profile (or its underlying
+     * rules) to bring already-indexed documents back in sync without the host
+     * re-feeding them. Documents indexed before raw text was retained have no
+     * raw to normalize and are skipped. Returns the number of documents
+     * regenerated.
+     */
+open func reindex()throws  -> UInt64 {
+    return try  FfiConverterUInt64.lift(try rustCallWithError(FfiConverterTypeSearchError.lift) {
+    uniffi_unfydqry_fn_method_searchengine_reindex(self.uniffiClonePointer(),$0
+    )
+})
+}
+    
+    /**
+     * Removes the document stored under `id`. A no-op if no such document
+     * exists.
+     */
 open func remove(id: Int64)throws  {try rustCallWithError(FfiConverterTypeSearchError.lift) {
     uniffi_unfydqry_fn_method_searchengine_remove(self.uniffiClonePointer(),
         FfiConverterInt64.lower(id),$0
@@ -577,6 +768,14 @@ open func remove(id: Int64)throws  {try rustCallWithError(FfiConverterTypeSearch
 }
 }
     
+    /**
+     * Searches the index and returns at most `limit` hits.
+     *
+     * The `query` is normalized with the engine's profile and then matched
+     * using the engine's strategy. A query that is empty — or only whitespace
+     * once normalized — returns no hits. Ordering and scoring depend on the
+     * strategy (see `Hit.score`).
+     */
 open func search(query: String, limit: UInt32)throws  -> [Hit] {
     return try  FfiConverterSequenceTypeHit.lift(try rustCallWithError(FfiConverterTypeSearchError.lift) {
     uniffi_unfydqry_fn_method_searchengine_search(self.uniffiClonePointer(),
@@ -641,13 +840,202 @@ public func FfiConverterTypeSearchEngine_lower(_ value: SearchEngine) -> UnsafeM
 }
 
 
+/**
+ * The combination the host selects when constructing an engine.
+ */
+public struct EngineConfig {
+    /**
+     * How text is normalized at both index and query time.
+     */
+    public var normalize: NormalizeProfile
+    /**
+     * Which query algorithm `SearchEngine.search` uses.
+     */
+    public var strategy: SearchStrategy
+
+    // Default memberwise initializers are never public by default, so we
+    // declare one manually.
+    public init(
+        /**
+         * How text is normalized at both index and query time.
+         */normalize: NormalizeProfile, 
+        /**
+         * Which query algorithm `SearchEngine.search` uses.
+         */strategy: SearchStrategy) {
+        self.normalize = normalize
+        self.strategy = strategy
+    }
+}
+
+
+
+extension EngineConfig: Equatable, Hashable {
+    public static func ==(lhs: EngineConfig, rhs: EngineConfig) -> Bool {
+        if lhs.normalize != rhs.normalize {
+            return false
+        }
+        if lhs.strategy != rhs.strategy {
+            return false
+        }
+        return true
+    }
+
+    public func hash(into hasher: inout Hasher) {
+        hasher.combine(normalize)
+        hasher.combine(strategy)
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeEngineConfig: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> EngineConfig {
+        return
+            try EngineConfig(
+                normalize: FfiConverterTypeNormalizeProfile.read(from: &buf), 
+                strategy: FfiConverterTypeSearchStrategy.read(from: &buf)
+        )
+    }
+
+    public static func write(_ value: EngineConfig, into buf: inout [UInt8]) {
+        FfiConverterTypeNormalizeProfile.write(value.normalize, into: &buf)
+        FfiConverterTypeSearchStrategy.write(value.strategy, into: &buf)
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeEngineConfig_lift(_ buf: RustBuffer) throws -> EngineConfig {
+    return try FfiConverterTypeEngineConfig.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeEngineConfig_lower(_ value: EngineConfig) -> RustBuffer {
+    return FfiConverterTypeEngineConfig.lower(value)
+}
+
+
+/**
+ * Like [`EngineConfig`], but selects normalization with a composable
+ * [`NormalizeOptions`] set instead of a named preset. Used by the
+ * `withOptions` / `withOptionsRebuilding` constructors.
+ */
+public struct EngineOptionsConfig {
+    /**
+     * The composable normalization steps applied at index and query time.
+     */
+    public var normalize: NormalizeOptions
+    /**
+     * Which query algorithm `SearchEngine.search` uses.
+     */
+    public var strategy: SearchStrategy
+
+    // Default memberwise initializers are never public by default, so we
+    // declare one manually.
+    public init(
+        /**
+         * The composable normalization steps applied at index and query time.
+         */normalize: NormalizeOptions, 
+        /**
+         * Which query algorithm `SearchEngine.search` uses.
+         */strategy: SearchStrategy) {
+        self.normalize = normalize
+        self.strategy = strategy
+    }
+}
+
+
+
+extension EngineOptionsConfig: Equatable, Hashable {
+    public static func ==(lhs: EngineOptionsConfig, rhs: EngineOptionsConfig) -> Bool {
+        if lhs.normalize != rhs.normalize {
+            return false
+        }
+        if lhs.strategy != rhs.strategy {
+            return false
+        }
+        return true
+    }
+
+    public func hash(into hasher: inout Hasher) {
+        hasher.combine(normalize)
+        hasher.combine(strategy)
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeEngineOptionsConfig: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> EngineOptionsConfig {
+        return
+            try EngineOptionsConfig(
+                normalize: FfiConverterTypeNormalizeOptions.read(from: &buf), 
+                strategy: FfiConverterTypeSearchStrategy.read(from: &buf)
+        )
+    }
+
+    public static func write(_ value: EngineOptionsConfig, into buf: inout [UInt8]) {
+        FfiConverterTypeNormalizeOptions.write(value.normalize, into: &buf)
+        FfiConverterTypeSearchStrategy.write(value.strategy, into: &buf)
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeEngineOptionsConfig_lift(_ buf: RustBuffer) throws -> EngineOptionsConfig {
+    return try FfiConverterTypeEngineOptionsConfig.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeEngineOptionsConfig_lower(_ value: EngineOptionsConfig) -> RustBuffer {
+    return FfiConverterTypeEngineOptionsConfig.lower(value)
+}
+
+
+/**
+ * A single search result: the stable `id` the host indexed under, plus a
+ * relevance `score`.
+ *
+ * The engine returns only ids and scores — never the document text — so the
+ * host re-fetches the full record from its own source-of-truth store.
+ */
 public struct Hit {
+    /**
+     * The id the document was indexed under (see `index`).
+     */
     public var id: Int64
+    /**
+     * Relevance score. For ranked strategies a smaller value is a better
+     * match (bm25 for `trigramBm25`, `1 − similarity` for `fuzzyTrigram`,
+     * edit distance for the Levenshtein strategies). Unranked strategies
+     * (`substring`, `prefix`, `suffix`, `allTerms`) always report `0.0`.
+     */
     public var score: Double
 
     // Default memberwise initializers are never public by default, so we
     // declare one manually.
-    public init(id: Int64, score: Double) {
+    public init(
+        /**
+         * The id the document was indexed under (see `index`).
+         */id: Int64, 
+        /**
+         * Relevance score. For ranked strategies a smaller value is a better
+         * match (bm25 for `trigramBm25`, `1 − similarity` for `fuzzyTrigram`,
+         * edit distance for the Levenshtein strategies). Unranked strategies
+         * (`substring`, `prefix`, `suffix`, `allTerms`) always report `0.0`.
+         */score: Double) {
         self.id = id
         self.score = score
     }
@@ -707,11 +1095,358 @@ public func FfiConverterTypeHit_lower(_ value: Hit) -> RustBuffer {
 }
 
 
+/**
+ * A composable set of normalization steps, all opt-in on top of the always-on
+ * NFKC foundation. The engine applies the enabled steps in a fixed canonical
+ * order (see `normalize/mod.rs`), so any combination is deterministic and
+ * identical across platforms.
+ */
+public struct NormalizeOptions {
+    /**
+     * Fold case via `char::to_lowercase`.
+     */
+    public var lowercase: Bool
+    /**
+     * Map katakana to hiragana (カ → か); dakuten stays distinct.
+     */
+    public var kanaFold: Bool
+    /**
+     * Strip Latin/Western combining diacritics (café → cafe).
+     */
+    public var foldDiacritics: Bool
+    /**
+     * Fold the prolonged-sound mark after kana (サーバー → サーバ).
+     */
+    public var foldChoonpu: Bool
+    /**
+     * Expand iteration marks (時々 → 時時, こゞ → こご).
+     */
+    public var expandIterationMarks: Bool
+    /**
+     * Unify the dash/hyphen family to ASCII `-`.
+     */
+    public var normalizeHyphens: Bool
+    /**
+     * Remove digit-grouping commas (1,000 → 1000).
+     */
+    public var stripDigitGrouping: Bool
+    /**
+     * Collapse whitespace runs to a single space and trim.
+     */
+    public var collapseWhitespace: Bool
+
+    // Default memberwise initializers are never public by default, so we
+    // declare one manually.
+    public init(
+        /**
+         * Fold case via `char::to_lowercase`.
+         */lowercase: Bool = false, 
+        /**
+         * Map katakana to hiragana (カ → か); dakuten stays distinct.
+         */kanaFold: Bool = false, 
+        /**
+         * Strip Latin/Western combining diacritics (café → cafe).
+         */foldDiacritics: Bool = false, 
+        /**
+         * Fold the prolonged-sound mark after kana (サーバー → サーバ).
+         */foldChoonpu: Bool = false, 
+        /**
+         * Expand iteration marks (時々 → 時時, こゞ → こご).
+         */expandIterationMarks: Bool = false, 
+        /**
+         * Unify the dash/hyphen family to ASCII `-`.
+         */normalizeHyphens: Bool = false, 
+        /**
+         * Remove digit-grouping commas (1,000 → 1000).
+         */stripDigitGrouping: Bool = false, 
+        /**
+         * Collapse whitespace runs to a single space and trim.
+         */collapseWhitespace: Bool = false) {
+        self.lowercase = lowercase
+        self.kanaFold = kanaFold
+        self.foldDiacritics = foldDiacritics
+        self.foldChoonpu = foldChoonpu
+        self.expandIterationMarks = expandIterationMarks
+        self.normalizeHyphens = normalizeHyphens
+        self.stripDigitGrouping = stripDigitGrouping
+        self.collapseWhitespace = collapseWhitespace
+    }
+}
+
+
+
+extension NormalizeOptions: Equatable, Hashable {
+    public static func ==(lhs: NormalizeOptions, rhs: NormalizeOptions) -> Bool {
+        if lhs.lowercase != rhs.lowercase {
+            return false
+        }
+        if lhs.kanaFold != rhs.kanaFold {
+            return false
+        }
+        if lhs.foldDiacritics != rhs.foldDiacritics {
+            return false
+        }
+        if lhs.foldChoonpu != rhs.foldChoonpu {
+            return false
+        }
+        if lhs.expandIterationMarks != rhs.expandIterationMarks {
+            return false
+        }
+        if lhs.normalizeHyphens != rhs.normalizeHyphens {
+            return false
+        }
+        if lhs.stripDigitGrouping != rhs.stripDigitGrouping {
+            return false
+        }
+        if lhs.collapseWhitespace != rhs.collapseWhitespace {
+            return false
+        }
+        return true
+    }
+
+    public func hash(into hasher: inout Hasher) {
+        hasher.combine(lowercase)
+        hasher.combine(kanaFold)
+        hasher.combine(foldDiacritics)
+        hasher.combine(foldChoonpu)
+        hasher.combine(expandIterationMarks)
+        hasher.combine(normalizeHyphens)
+        hasher.combine(stripDigitGrouping)
+        hasher.combine(collapseWhitespace)
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeNormalizeOptions: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> NormalizeOptions {
+        return
+            try NormalizeOptions(
+                lowercase: FfiConverterBool.read(from: &buf), 
+                kanaFold: FfiConverterBool.read(from: &buf), 
+                foldDiacritics: FfiConverterBool.read(from: &buf), 
+                foldChoonpu: FfiConverterBool.read(from: &buf), 
+                expandIterationMarks: FfiConverterBool.read(from: &buf), 
+                normalizeHyphens: FfiConverterBool.read(from: &buf), 
+                stripDigitGrouping: FfiConverterBool.read(from: &buf), 
+                collapseWhitespace: FfiConverterBool.read(from: &buf)
+        )
+    }
+
+    public static func write(_ value: NormalizeOptions, into buf: inout [UInt8]) {
+        FfiConverterBool.write(value.lowercase, into: &buf)
+        FfiConverterBool.write(value.kanaFold, into: &buf)
+        FfiConverterBool.write(value.foldDiacritics, into: &buf)
+        FfiConverterBool.write(value.foldChoonpu, into: &buf)
+        FfiConverterBool.write(value.expandIterationMarks, into: &buf)
+        FfiConverterBool.write(value.normalizeHyphens, into: &buf)
+        FfiConverterBool.write(value.stripDigitGrouping, into: &buf)
+        FfiConverterBool.write(value.collapseWhitespace, into: &buf)
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeNormalizeOptions_lift(_ buf: RustBuffer) throws -> NormalizeOptions {
+    return try FfiConverterTypeNormalizeOptions.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeNormalizeOptions_lower(_ value: NormalizeOptions) -> RustBuffer {
+    return FfiConverterTypeNormalizeOptions.lower(value)
+}
+
+// Note that we don't yet support `indirect` for enums.
+// See https://github.com/mozilla/uniffi-rs/issues/396 for further discussion.
+/**
+ * Which normalization pipeline runs at index and query time.
+ *
+ * `Loose` is the original behaviour (NFKC → katakana→hiragana → lowercase).
+ */
+
+public enum NormalizeProfile {
+    
+    /**
+     * The original behaviour: NFKC, then katakana→hiragana, then lowercase,
+     * so case, width, and kana variant all fold together.
+     */
+    case loose
+    /**
+     * NFKC + lowercase only; kana variants are kept distinct.
+     */
+    case nfkcCaseFold
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeNormalizeProfile: FfiConverterRustBuffer {
+    typealias SwiftType = NormalizeProfile
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> NormalizeProfile {
+        let variant: Int32 = try readInt(&buf)
+        switch variant {
+        
+        case 1: return .loose
+        
+        case 2: return .nfkcCaseFold
+        
+        default: throw UniffiInternalError.unexpectedEnumCase
+        }
+    }
+
+    public static func write(_ value: NormalizeProfile, into buf: inout [UInt8]) {
+        switch value {
+        
+        
+        case .loose:
+            writeInt(&buf, Int32(1))
+        
+        
+        case .nfkcCaseFold:
+            writeInt(&buf, Int32(2))
+        
+        }
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeNormalizeProfile_lift(_ buf: RustBuffer) throws -> NormalizeProfile {
+    return try FfiConverterTypeNormalizeProfile.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeNormalizeProfile_lower(_ value: NormalizeProfile) -> RustBuffer {
+    return FfiConverterTypeNormalizeProfile.lower(value)
+}
+
+
+
+extension NormalizeProfile: Equatable, Hashable {}
+
+
+
+// Note that we don't yet support `indirect` for enums.
+// See https://github.com/mozilla/uniffi-rs/issues/396 for further discussion.
+/**
+ * Whether an on-disk index can be queried with a given normalization, or needs
+ * regenerating first. Returned by `reindexStatus` / `reindexStatusWithOptions`.
+ */
+
+public enum ReindexStatus {
+    
+    /**
+     * The index holds no documents; any normalization can be adopted freely
+     * (no regeneration needed — the next `index` call stamps the profile).
+     */
+    case empty
+    /**
+     * The stored documents were already normalized with the requested
+     * profile/options. The index is ready to query as-is.
+     */
+    case upToDate
+    /**
+     * The stored documents were normalized under a *different* profile/options.
+     * Querying as-is would return wrong results — regenerate (via `reindex`,
+     * `withConfigRebuilding`, or `withOptionsRebuilding`) before use.
+     */
+    case configChanged
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeReindexStatus: FfiConverterRustBuffer {
+    typealias SwiftType = ReindexStatus
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> ReindexStatus {
+        let variant: Int32 = try readInt(&buf)
+        switch variant {
+        
+        case 1: return .empty
+        
+        case 2: return .upToDate
+        
+        case 3: return .configChanged
+        
+        default: throw UniffiInternalError.unexpectedEnumCase
+        }
+    }
+
+    public static func write(_ value: ReindexStatus, into buf: inout [UInt8]) {
+        switch value {
+        
+        
+        case .empty:
+            writeInt(&buf, Int32(1))
+        
+        
+        case .upToDate:
+            writeInt(&buf, Int32(2))
+        
+        
+        case .configChanged:
+            writeInt(&buf, Int32(3))
+        
+        }
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeReindexStatus_lift(_ buf: RustBuffer) throws -> ReindexStatus {
+    return try FfiConverterTypeReindexStatus.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeReindexStatus_lower(_ value: ReindexStatus) -> RustBuffer {
+    return FfiConverterTypeReindexStatus.lower(value)
+}
+
+
+
+extension ReindexStatus: Equatable, Hashable {}
+
+
+
+
+/**
+ * An error surfaced across the FFI boundary by `SearchEngine`.
+ */
 public enum SearchError {
 
     
     
+    /**
+     * An underlying SQLite / storage failure; the associated string is its
+     * message.
+     */
     case Db(String
+    )
+    /**
+     * The on-disk index was built with a different normalization profile
+     * than the one requested. Indexed text is profile-specific, so the index
+     * must be rebuilt to change profiles. `stored` is the profile recorded in
+     * the index; `requested` is the one just asked for.
+     */
+    case ConfigMismatch(stored: String, requested: String
     )
 }
 
@@ -732,6 +1467,10 @@ public struct FfiConverterTypeSearchError: FfiConverterRustBuffer {
         case 1: return .Db(
             try FfiConverterString.read(from: &buf)
             )
+        case 2: return .ConfigMismatch(
+            stored: try FfiConverterString.read(from: &buf), 
+            requested: try FfiConverterString.read(from: &buf)
+            )
 
          default: throw UniffiInternalError.unexpectedEnumCase
         }
@@ -748,6 +1487,12 @@ public struct FfiConverterTypeSearchError: FfiConverterRustBuffer {
             writeInt(&buf, Int32(1))
             FfiConverterString.write(v1, into: &buf)
             
+        
+        case let .ConfigMismatch(stored,requested):
+            writeInt(&buf, Int32(2))
+            FfiConverterString.write(stored, into: &buf)
+            FfiConverterString.write(requested, into: &buf)
+            
         }
     }
 }
@@ -760,6 +1505,139 @@ extension SearchError: Foundation.LocalizedError {
         String(reflecting: self)
     }
 }
+
+// Note that we don't yet support `indirect` for enums.
+// See https://github.com/mozilla/uniffi-rs/issues/396 for further discussion.
+/**
+ * Which query algorithm `SearchEngine::search` uses.
+ */
+
+public enum SearchStrategy {
+    
+    /**
+     * Trigram FTS5 + bm25, with a LIKE fallback for queries shorter than 3 chars.
+     */
+    case trigramBm25
+    /**
+     * Substring match (`LIKE '%q%'`) for every query.
+     */
+    case substring
+    /**
+     * Prefix match (`LIKE 'q%'`) for every query.
+     */
+    case prefix
+    /**
+     * Suffix match (`LIKE '%q'`) for every query.
+     */
+    case suffix
+    /**
+     * Every whitespace-separated term must appear (substring), order-independent.
+     */
+    case allTerms
+    /**
+     * Character-trigram set similarity (Jaccard); ranked by 1 − similarity.
+     */
+    case fuzzyTrigram
+    /**
+     * Typo-tolerant: min Levenshtein distance to any word in the doc.
+     */
+    case levenshtein
+    /**
+     * Like `Levenshtein`, but an adjacent transposition counts as one edit.
+     */
+    case damerauLevenshtein
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeSearchStrategy: FfiConverterRustBuffer {
+    typealias SwiftType = SearchStrategy
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> SearchStrategy {
+        let variant: Int32 = try readInt(&buf)
+        switch variant {
+        
+        case 1: return .trigramBm25
+        
+        case 2: return .substring
+        
+        case 3: return .prefix
+        
+        case 4: return .suffix
+        
+        case 5: return .allTerms
+        
+        case 6: return .fuzzyTrigram
+        
+        case 7: return .levenshtein
+        
+        case 8: return .damerauLevenshtein
+        
+        default: throw UniffiInternalError.unexpectedEnumCase
+        }
+    }
+
+    public static func write(_ value: SearchStrategy, into buf: inout [UInt8]) {
+        switch value {
+        
+        
+        case .trigramBm25:
+            writeInt(&buf, Int32(1))
+        
+        
+        case .substring:
+            writeInt(&buf, Int32(2))
+        
+        
+        case .prefix:
+            writeInt(&buf, Int32(3))
+        
+        
+        case .suffix:
+            writeInt(&buf, Int32(4))
+        
+        
+        case .allTerms:
+            writeInt(&buf, Int32(5))
+        
+        
+        case .fuzzyTrigram:
+            writeInt(&buf, Int32(6))
+        
+        
+        case .levenshtein:
+            writeInt(&buf, Int32(7))
+        
+        
+        case .damerauLevenshtein:
+            writeInt(&buf, Int32(8))
+        
+        }
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeSearchStrategy_lift(_ buf: RustBuffer) throws -> SearchStrategy {
+    return try FfiConverterTypeSearchStrategy.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeSearchStrategy_lower(_ value: SearchStrategy) -> RustBuffer {
+    return FfiConverterTypeSearchStrategy.lower(value)
+}
+
+
+
+extension SearchStrategy: Equatable, Hashable {}
+
+
 
 #if swift(>=5.8)
 @_documentation(visibility: private)
@@ -786,12 +1664,66 @@ fileprivate struct FfiConverterSequenceTypeHit: FfiConverterRustBuffer {
     }
 }
 /**
- * 検査・デバッグ用に正規化結果を取り出せるよう FFI でも公開する。
+ * Returns `input` normalized with the default `loose` profile (NFKC, then
+ * katakana→hiragana, then lowercase).
+ *
+ * This is the same normalization the engine applies to indexed text and
+ * queries by default; exposed so a host can preview or debug how a string
+ * will be folded before searching.
  */
 public func normalizeLoose(input: String) -> String {
     return try!  FfiConverterString.lift(try! rustCall() {
     uniffi_unfydqry_fn_func_normalizeloose(
         FfiConverterString.lower(input),$0
+    )
+})
+}
+/**
+ * Normalizes `input` with a composable `NormalizeOptions` set — the same
+ * transform the engine applies when opened via `withOptions`. Exposed so a
+ * host can preview how a string folds under a given combination of steps.
+ */
+public func normalizeWithOptions(input: String, options: NormalizeOptions) -> String {
+    return try!  FfiConverterString.lift(try! rustCall() {
+    uniffi_unfydqry_fn_func_normalizewithoptions(
+        FfiConverterString.lower(input),
+        FfiConverterTypeNormalizeOptions.lower(options),$0
+    )
+})
+}
+/**
+ * Like `normalizeLoose`, but lets the caller pick the normalization profile.
+ */
+public func normalizeWithProfile(input: String, profile: NormalizeProfile) -> String {
+    return try!  FfiConverterString.lift(try! rustCall() {
+    uniffi_unfydqry_fn_func_normalizewithprofile(
+        FfiConverterString.lower(input),
+        FfiConverterTypeNormalizeProfile.lower(profile),$0
+    )
+})
+}
+/**
+ * Whether the index at `db_path` needs regenerating to be used with `config`'s
+ * normalization profile. Lets a host decide between `withConfig` (when
+ * `UpToDate`/`Empty`) and `withConfigRebuilding` / `reindex` (when
+ * `ConfigChanged`) without first triggering a `ConfigMismatch` error.
+ */
+public func reindexStatus(dbPath: String, config: EngineConfig)throws  -> ReindexStatus {
+    return try  FfiConverterTypeReindexStatus.lift(try rustCallWithError(FfiConverterTypeSearchError.lift) {
+    uniffi_unfydqry_fn_func_reindexstatus(
+        FfiConverterString.lower(dbPath),
+        FfiConverterTypeEngineConfig.lower(config),$0
+    )
+})
+}
+/**
+ * Like `reindexStatus`, but for a composable `NormalizeOptions` set.
+ */
+public func reindexStatusWithOptions(dbPath: String, options: NormalizeOptions)throws  -> ReindexStatus {
+    return try  FfiConverterTypeReindexStatus.lift(try rustCallWithError(FfiConverterTypeSearchError.lift) {
+    uniffi_unfydqry_fn_func_reindexstatuswithoptions(
+        FfiConverterString.lower(dbPath),
+        FfiConverterTypeNormalizeOptions.lower(options),$0
     )
 })
 }
@@ -811,19 +1743,46 @@ private var initializationResult: InitializationResult = {
     if bindings_contract_version != scaffolding_contract_version {
         return InitializationResult.contractVersionMismatch
     }
-    if (uniffi_unfydqry_checksum_func_normalizeloose() != 41915) {
+    if (uniffi_unfydqry_checksum_func_normalizeloose() != 36363) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_unfydqry_checksum_method_searchengine_index() != 21713) {
+    if (uniffi_unfydqry_checksum_func_normalizewithoptions() != 33141) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_unfydqry_checksum_method_searchengine_remove() != 54990) {
+    if (uniffi_unfydqry_checksum_func_normalizewithprofile() != 49347) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_unfydqry_checksum_method_searchengine_search() != 52212) {
+    if (uniffi_unfydqry_checksum_func_reindexstatus() != 13108) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_unfydqry_checksum_constructor_searchengine_new() != 21833) {
+    if (uniffi_unfydqry_checksum_func_reindexstatuswithoptions() != 36594) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_unfydqry_checksum_method_searchengine_index() != 36421) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_unfydqry_checksum_method_searchengine_reindex() != 31136) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_unfydqry_checksum_method_searchengine_remove() != 44114) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_unfydqry_checksum_method_searchengine_search() != 59606) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_unfydqry_checksum_constructor_searchengine_new() != 487) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_unfydqry_checksum_constructor_searchengine_withconfig() != 18262) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_unfydqry_checksum_constructor_searchengine_withconfigrebuilding() != 47325) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_unfydqry_checksum_constructor_searchengine_withoptions() != 4538) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_unfydqry_checksum_constructor_searchengine_withoptionsrebuilding() != 9643) {
         return InitializationResult.apiChecksumMismatch
     }
 

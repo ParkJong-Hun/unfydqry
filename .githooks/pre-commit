@@ -1,0 +1,36 @@
+#!/usr/bin/env bash
+# Commit guard for the Rust core.
+#
+# When any `.rs` file is staged we:
+#   1. enforce `cargo fmt --check` (mirrors .github/workflows/rust-tests.yml),
+#   2. regenerate the committed UniFFI bindings via `make gen-bindings` and
+#      auto-stage them, so the Swift/Kotlin bindings can never drift from the
+#      Rust signatures in a commit.
+#
+# Note: step 2 builds the release dylib, so the first commit after a clean
+# build is slow; subsequent commits reuse the cargo cache.
+#
+# Enable once per clone:
+#     git config core.hooksPath .githooks
+set -euo pipefail
+
+repo_root="$(git rev-parse --show-toplevel)"
+
+if git diff --cached --name-only --diff-filter=ACM | grep -q '\.rs$'; then
+  echo "pre-commit: cargo fmt --check"
+  if ! cargo fmt --manifest-path "$repo_root/core/Cargo.toml" --all -- --check; then
+    echo >&2
+    echo "Rust formatting issues found. Run 'make fmt' (or 'cargo fmt'), re-stage, and commit again." >&2
+    exit 1
+  fi
+
+  echo "pre-commit: make gen-bindings"
+  make -C "$repo_root" gen-bindings
+
+  # Auto-stage any regenerated bindings so the commit stays self-consistent.
+  bindings=(
+    "android/sample/unifiedquery/src/main/kotlin/uniffi/unfydqry/unfydqry.kt"
+    "ios/Sources/UnifiedQuery/UnifiedQuery.swift"
+  )
+  git -C "$repo_root" add -- "${bindings[@]}"
+fi

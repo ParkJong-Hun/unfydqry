@@ -16,3 +16,4 @@ dependencyResolutionManagement {
 rootProject.name = "SearchSample"
 include(":app")
 include(":unifiedquery")
+include(":unifiedquery-android")

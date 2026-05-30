@@ -2,8 +2,8 @@ import Foundation
 import Testing
 @testable import UnifiedQuery
 
-/// 各テストで独立した一時 DB ファイルを作って渡すヘルパ。
-/// テスト終了時に削除する責任は呼び出し側。
+/// Helper that hands out an independent temp DB file path per test.
+/// The caller is responsible for cleaning it up after the test.
 private func makeTempDBPath() -> String {
     let dir = FileManager.default.temporaryDirectory
         .appendingPathComponent("UnifiedQueryTests-\(UUID().uuidString)", isDirectory: true)
@@ -15,7 +15,7 @@ private func makeTempDBPath() -> String {
 struct SearchEngineLifecycleTests {
     @Test func openInMemorySucceeds() throws {
         let engine = try SearchEngine(dbPath: ":memory:")
-        // メソッド呼び出しで初期化が完了していることを確認。
+        // Calling a method confirms that initialization completed.
         let hits = try engine.search(query: "anything", limit: 10)
         #expect(hits.isEmpty)
     }
@@ -39,7 +39,8 @@ struct SearchEngineLifecycleTests {
 
         do {
             let e = try SearchEngine(dbPath: path)
-            // ひらがな主体で index。漢字読み引きは別仕様(辞書非依存設計)。
+            // Index primarily in hiragana. Looking up by kanji reading is out of scope
+            // (this engine is intentionally dictionary-free).
             try e.index(id: 1, text: "とうきょうタワー")
             try e.index(id: 2, text: "おおさかじょう")
         }
@@ -50,7 +51,8 @@ struct SearchEngineLifecycleTests {
     }
 
     @Test func invalidPathThrows() {
-        // 存在しない深いディレクトリ。SQLite はディレクトリを作らないので失敗するはず。
+        // A path under a nonexistent directory tree. SQLite does not create parent
+        // directories, so open() should fail.
         let path = "/nonexistent/\(UUID().uuidString)/x/y/index.sqlite"
         #expect(throws: SearchError.self) {
             _ = try SearchEngine(dbPath: path)

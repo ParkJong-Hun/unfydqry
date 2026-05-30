@@ -1,0 +1,97 @@
+name: Release AAR
+
+on:
+  push:
+    tags:
+      - "[0-9]+.[0-9]+.[0-9]+*"
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version to publish"
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    name: Publish unifiedquery AAR to Maven Central
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      # vanniktech-maven-publish reads these via Gradle properties prefixed with ORG_GRADLE_PROJECT_.
+      ORG_GRADLE_PROJECT_mavenCentralUsername: ${{ secrets.MAVEN_CENTRAL_USERNAME }}
+      ORG_GRADLE_PROJECT_mavenCentralPassword: ${{ secrets.MAVEN_CENTRAL_PASSWORD }}
+      ORG_GRADLE_PROJECT_signingInMemoryKey: ${{ secrets.SIGNING_IN_MEMORY_KEY }}
+      ORG_GRADLE_PROJECT_signingInMemoryKeyId: ${{ secrets.SIGNING_IN_MEMORY_KEY_ID }}
+      ORG_GRADLE_PROJECT_signingInMemoryKeyPassword: ${{ secrets.SIGNING_IN_MEMORY_KEY_PASSWORD }}
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Resolve version
+        id: version
+        run: |
+          if [ -n "${{ inputs.version }}" ]; then
+            echo "value=${{ inputs.version }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "value=${GITHUB_REF_NAME}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Install Rust stable + Android targets
+        uses: dtolnay/rust-toolchain@3c5f7ea28cd621ae0bf5283f0e981fb97b8a7af9 # stable
+        with:
+          toolchain: stable
+          targets: aarch64-linux-android,armv7-linux-androideabi,x86_64-linux-android
+
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@c19371144df3bb44fab255c43d04cbc2ab54d1c4 # v2.9.1
+        with:
+          workspaces: core
+
+      - name: Set up Android NDK
+        id: ndk
+        uses: nttld/setup-ndk@ed92fe6cadad69be94a966a7ee3271275e62f779 # v1.6.0
+        with:
+          ndk-version: r29
+          add-to-path: false
+
+      - name: Install cargo-ndk
+        run: cargo install cargo-ndk --locked
+
+      - name: Build libunfydqry.so for all Android ABIs
+        working-directory: core
+        env:
+          ANDROID_NDK_HOME: ${{ steps.ndk.outputs.ndk-path }}
+        run: |
+          cargo ndk \
+            -t arm64-v8a -t armeabi-v7a -t x86_64 \
+            -o ../android/jniLibs \
+            build --release
+
+      - name: Verify Kotlin binding is in sync with Rust
+        working-directory: core
+        run: |
+          cargo build --release
+          cargo run --bin uniffi-bindgen -- generate \
+            --library target/release/libunfydqry.so \
+            --language kotlin \
+            --out-dir generated/kotlin
+          diff -u \
+            ../android/sample/unifiedquery/src/main/kotlin/uniffi/unfydqry/unfydqry.kt \
+            generated/kotlin/uniffi/unfydqry/unfydqry.kt
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@be666c2fcd27ec809703dec50e508c2fdc7f6654 # v5.2.0
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@50e97c2cd7a37755bbfafc9c5b7cafaece252f6e # v6.1.0
+
+      - name: Publish to Maven Central
+        working-directory: android/sample
+        run: |
+          gradle :unifiedquery-android:publishToMavenCentral \
+            --no-configuration-cache \
+            -PVERSION_NAME=${{ steps.version.outputs.value }}

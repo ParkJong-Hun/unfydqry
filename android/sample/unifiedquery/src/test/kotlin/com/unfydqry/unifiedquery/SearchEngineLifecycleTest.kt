@@ -51,7 +51,7 @@ class SearchEngineLifecycleTest {
                 e.index(1, "とうきょうタワー")
                 e.index(2, "おおさかじょう")
             }
-            // 同じパスで開き直し。WAL のおかげで再オープン後も内容が見える。
+            // Reopen the same path. Thanks to WAL the contents are still visible after reopen.
             val e2 = SearchEngine(path)
             val hits = e2.search("トウキョウ", 10u)
             assertEquals(listOf(1L), hits.map { it.id })

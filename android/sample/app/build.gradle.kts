@@ -26,13 +26,13 @@ android {
     kotlinOptions { jvmTarget = "17" }
 
     packaging {
-        // .so は jniLibs から拾う
+        // .so files are picked up from jniLibs.
     }
 }
 
 dependencies {
-    // バインディング(uniffi.unfydqry.*)は :unifiedquery モジュール経由で取り込む。
-    // iOS の SwiftPM ライブラリターゲット(UnifiedQuery)を参照するのと対称。
+    // The binding (uniffi.unfydqry.*) is brought in via the :unifiedquery module.
+    // Symmetric to depending on the SwiftPM library target (UnifiedQuery) on iOS.
     implementation(project(":unifiedquery"))
 
     implementation("androidx.activity:activity-compose:1.9.3")
@@ -40,7 +40,7 @@ dependencies {
     implementation("androidx.compose.material3:material3")
     implementation("androidx.compose.ui:ui")
     implementation("androidx.compose.ui:ui-tooling-preview")
-    // JNA のネイティブ・ディスパッチ部(libjnidispatch.so)は AAR からしか入らない。
-    // :unifiedquery は jar 配布なので、Android 上では app 側でこの AAR を足す必要がある。
+    // JNA's native dispatch part (libjnidispatch.so) is only delivered via the AAR.
+    // :unifiedquery is distributed as a jar, so on Android the :app side must add this AAR.
     implementation("net.java.dev.jna:jna:5.14.0@aar")
 }

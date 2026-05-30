@@ -1,20 +1,43 @@
 // swift-tools-version:6.0
 import PackageDescription
 
-// クロスプラットフォーム検索エンジン(Rust + UniFFI)の Swift パッケージ。
-// Rust 側のクレート名は `unfydqry`、Swift 側のパッケージ名は `UnifiedQuery` を採用する。
-// Package.swift はリポジトリのルートに置きつつ、iOS 関係のソース・テスト・
-// XCFramework は ios/ 配下にまとめている。
+// Swift package for the cross-platform search engine (Rust + UniFFI).
+// The Rust crate is named `unfydqry`; the Swift package is named
+// `UnifiedQuery`. Package.swift lives at the repo root while the iOS
+// sources, tests, and XCFramework all live under ios/.
 //
-// `binaryTarget` で XCFramework を取り込み、`unfydqryFFI` の C モジュールが
-// XCFramework 内の modulemap 経由で公開される(中身は libunfydqry.a)。
-// 利用者は `import UnifiedQuery` だけで `SearchEngine` / `Hit` / `SearchError` /
-// `normalizeLoose` に触れる。
+// `binaryTarget` pulls in the XCFramework and exposes the `unfydqryFFI`
+// C module via the modulemap inside it (the underlying library is
+// libunfydqry.a). Consumers only `import UnifiedQuery` to reach
+// `SearchEngine` / `Hit` / `SearchError` / `normalizeLoose`.
 //
-// 注意:
-// - XCFramework は monorepo 内で生成する成果物。core/ から再生成可能。
-// - `ios/Sources/UnifiedQuery/UnifiedQuery.swift` は uniffi-bindgen により
-//   Rust から生成されたバインディング。手で書き換えない。
+// XCFramework distribution strategy:
+// - On `main`, Package.swift always references the XCFramework by local
+//   path (`binaryTarget(path:)`). Local development and the swift-tests
+//   CI build the XCFramework into `ios/UnifiedQuery.xcframework` first
+//   (via `scripts/build-xcframework.sh`, or via the on-the-fly slim slice
+//   the CI workflow produces) and then run `swift test` against it.
+// - On release tags, `.github/workflows/release-xcframework.yml` rewrites
+//   this manifest to `binaryTarget(url:checksum:)` on a detached commit
+//   pointing at the GitHub Release zip, then tags that commit. SwiftPM
+//   consumers resolving the tag see the URL form. `main` itself is never
+//   modified by the release workflow, which keeps SwiftPM's manifest
+//   cache on developer machines consistent.
+//
+// Notes:
+// - The region between `--- BINARY-TARGET START/END ---` is rewritten
+//   wholesale by the release workflow via sed. Do not remove the marker
+//   comments.
+// - `ios/Sources/UnifiedQuery/UnifiedQuery.swift` is generated from the
+//   Rust crate by uniffi-bindgen. Do not edit it by hand.
+
+// --- BINARY-TARGET START ---
+let unfydqryBinaryTarget: Target = .binaryTarget(
+    name: "unfydqryFFI",
+    path: "ios/UnifiedQuery.xcframework"
+)
+// --- BINARY-TARGET END ---
+
 let package = Package(
     name: "UnifiedQuery",
     platforms: [
@@ -25,10 +48,7 @@ let package = Package(
         .library(name: "UnifiedQuery", targets: ["UnifiedQuery"])
     ],
     targets: [
-        .binaryTarget(
-            name: "unfydqryFFI",
-            path: "ios/UnifiedQuery.xcframework"
-        ),
+        unfydqryBinaryTarget,
         .target(
             name: "UnifiedQuery",
             dependencies: ["unfydqryFFI"],

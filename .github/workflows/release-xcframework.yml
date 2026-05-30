@@ -1,0 +1,165 @@
+name: Release XCFramework
+
+# Two ways to trigger:
+#   - Push a version tag like `0.1.0` (the recommended path).
+#   - Manually via Actions tab → "Release XCFramework" → Run workflow with a
+#     version input. The workflow then creates the tag itself.
+#
+# In both cases the workflow:
+#   1. Builds ios/UnifiedQuery.xcframework via scripts/build-xcframework.sh
+#   2. On a detached HEAD off of the source commit, rewrites the
+#      BINARY-TARGET block in Package.swift to the
+#      `binaryTarget(url:checksum:)` form pointing at the release asset
+#   3. Creates or force-updates the tag to point at that detached commit
+#      (so SwiftPM consumers of the tag get the URL-based manifest, while
+#      `main` itself keeps the path-based form for local dev / swift-tests CI)
+#   4. Publishes a GitHub Release with the zip attached
+#
+# The job has an `if:` guard so the force-update of the tag does not
+# infinitely re-trigger the push-tag workflow.
+
+on:
+  push:
+    tags:
+      - '[0-9]+.[0-9]+.[0-9]+'
+      - '[0-9]+.[0-9]+.[0-9]+-*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Release tag (e.g. 0.1.0)'
+        required: true
+        type: string
+
+jobs:
+  release:
+    name: Build and publish xcframework
+    runs-on: macos-26
+    timeout-minutes: 60
+    # Skip the re-trigger caused by force-updating the tag to the
+    # `release: pin Package.swift to ...` commit created by this workflow.
+    if: "${{ github.event_name != 'push' || !startsWith(github.event.head_commit.message, 'release: pin Package.swift to') }}"
+    permissions:
+      contents: write
+
+    steps:
+      - name: Resolve version
+        id: version
+        env:
+          INPUT_VERSION: ${{ inputs.version }}
+          REF_NAME: ${{ github.ref_name }}
+        run: |
+          set -eu
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            VERSION="$INPUT_VERSION"
+          else
+            VERSION="$REF_NAME"
+          fi
+          if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[A-Za-z0-9.-]+)?$ ]]; then
+            echo "Expected version of the form MAJOR.MINOR.PATCH[-prerelease], got: $VERSION" >&2
+            exit 1
+          fi
+          echo "value=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "Version: $VERSION"
+
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          # For tag push: checkout the tagged commit. For manual dispatch:
+          # checkout main as the base for the release commit.
+          ref: ${{ github.event_name == 'workflow_dispatch' && 'main' || github.ref }}
+          fetch-depth: 0
+
+      - name: Fail if dispatch tag already exists
+        if: github.event_name == 'workflow_dispatch'
+        env:
+          VERSION: ${{ steps.version.outputs.value }}
+        run: |
+          if git ls-remote --tags origin "refs/tags/${VERSION}" | grep -q .; then
+            echo "Tag ${VERSION} already exists on origin — bump the version or delete the existing tag first." >&2
+            exit 1
+          fi
+
+      - name: Show toolchain versions
+        run: |
+          xcodebuild -version
+          swift --version
+
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@29eef336d9b2848a0b548edc03f92a220660cdb8 # stable
+        with:
+          targets: aarch64-apple-darwin,aarch64-apple-ios,aarch64-apple-ios-sim,x86_64-apple-ios
+
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
+        with:
+          workspaces: core
+
+      - name: Build xcframework + zip
+        run: bash scripts/build-xcframework.sh
+
+      - name: Read checksum
+        id: checksum
+        run: |
+          value="$(cat ios/UnifiedQuery.xcframework.zip.sha256)"
+          echo "value=$value" >> "$GITHUB_OUTPUT"
+          echo "Checksum: $value"
+
+      - name: Rewrite Package.swift BINARY-TARGET block to URL form
+        env:
+          VERSION: ${{ steps.version.outputs.value }}
+          CHECKSUM: ${{ steps.checksum.outputs.value }}
+          REPO: ${{ github.repository }}
+          URL: https://github.com/${{ github.repository }}/releases/download/${{ steps.version.outputs.value }}/UnifiedQuery.xcframework.zip
+        run: |
+          set -eux
+          python3 - <<'PY'
+          import os, re, pathlib
+          url = os.environ["URL"]
+          checksum = os.environ["CHECKSUM"]
+          path = pathlib.Path("Package.swift")
+          text = path.read_text()
+          replacement = (
+              f'// --- BINARY-TARGET START ---\n'
+              f'let unfydqryBinaryTarget: Target = .binaryTarget(\n'
+              f'    name: "unfydqryFFI",\n'
+              f'    url: "{url}",\n'
+              f'    checksum: "{checksum}"\n'
+              f')\n'
+              f'// --- BINARY-TARGET END ---'
+          )
+          new_text, n = re.subn(
+              r'// --- BINARY-TARGET START ---.*?// --- BINARY-TARGET END ---',
+              replacement,
+              text,
+              count=1,
+              flags=re.DOTALL,
+          )
+          if n != 1:
+              raise SystemExit("Could not locate BINARY-TARGET block in Package.swift")
+          path.write_text(new_text)
+          PY
+          git diff -- Package.swift
+
+      - name: Sanity-check the rewritten manifest
+        run: swift package dump-package > /dev/null
+
+      - name: Commit on detached HEAD and (force-)update tag
+        env:
+          VERSION: ${{ steps.version.outputs.value }}
+        run: |
+          set -eux
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add Package.swift
+          # Detached-HEAD commit: this commit is NOT pushed to main.
+          # The tag is (re)pointed at it.
+          git commit -m "release: pin Package.swift to ${VERSION}"
+          git tag -f -a "${VERSION}" -m "${VERSION}"
+          git push --force origin "refs/tags/${VERSION}"
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2
+        with:
+          tag_name: ${{ steps.version.outputs.value }}
+          name: ${{ steps.version.outputs.value }}
+          generate_release_notes: true
+          files: ios/UnifiedQuery.xcframework.zip
