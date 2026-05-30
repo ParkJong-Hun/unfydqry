@@ -15,7 +15,7 @@ flutter/
 ├── android/
 │   ├── build.gradle.kts
 │   └── src/main/kotlin/unfydqry/flutter/UnfydqryPlugin.kt
-├── test/unfydqry_test.dart     11 mock-channel Dart unit tests
+├── test/unfydqry_test.dart     13 mock-channel Dart unit tests
 ├── example/                    Flutter sample app (same 8-record seed)
 └── pubspec.yaml
 ```
@@ -59,6 +59,16 @@ Channel name: **`unfydqry/search`**
 
 Engines are identified by an integer handle so multiple instances can coexist.
 
+Both platforms return the same `FlutterError` codes so Dart sees identical
+failures regardless of host OS:
+
+| Code | Meaning |
+|---|---|
+| `BAD_ARGS` | A required argument was missing or the wrong type |
+| `NO_ENGINE` | The `handle` does not refer to an open engine |
+| `SEARCH_ERROR` | The native engine raised a `SearchError`/`SearchException` |
+| `PLUGIN_ERROR` | Any other unexpected native failure |
+
 ## Native-binding dependency
 
 Both platform implementations import the native binding class directly:
@@ -70,6 +80,31 @@ Both platform implementations import the native binding class directly:
 
 If the binding API changes the plugin fails to compile — drift is caught at
 build time, not at runtime.
+
+## Native-artifact packaging
+
+How the prebuilt native binaries reach a consuming app.
+
+**Current — strategy A (copy into the plugin):**
+The XCFramework is built at `<repo>/ios/UnifiedQuery.xcframework` and copied
+into the pod root `flutter/ios/`, where the podspec vendors it by bare name
+(`s.vendored_frameworks = 'UnifiedQuery.xcframework'`). The copy is gitignored.
+This keeps the pod self-contained (so `pod lib lint` passes) without committing
+binaries. Android mirrors this by reading the prebuilt `.so` files.
+
+Trade-off: every consumer must build the Rust core locally first.
+
+**Planned — strategy C (download a release binary):**
+Once tagged releases exist, fetch a prebuilt artifact at `pod install` time so
+plugin consumers no longer need the Rust toolchain:
+
+```ruby
+s.source = { :http => 'https://github.com/0x0c/unfydqry/releases/download/vX.Y.Z/UnifiedQuery.xcframework.zip' }
+```
+
+with the Android side switching to a published Maven artifact carrying the
+`.so` files. This is deferred until a release/versioning cadence is in place;
+the migration point is flagged in `flutter/ios/unfydqry.podspec`.
 
 ## Build prerequisites
 
@@ -83,14 +118,44 @@ build time, not at runtime.
 
 **iOS XCFramework**:
 
+The canonical artifact is `<repo>/ios/UnifiedQuery.xcframework` — the same one
+the native iOS binding ships. The assembly steps live in
+[`.github/workflows/swift-tests.yml`](../.github/workflows/swift-tests.yml)
+(the "Assemble … XCFramework" step); reproduced here for a single macOS slice:
+
 ```sh
 cd core
-cargo build --release \
-  --target aarch64-apple-darwin \
-  --target aarch64-apple-ios \
-  --target aarch64-apple-ios-sim \
-  --target x86_64-apple-ios
-# bundle into XCFramework — see scripts/build-xcframework.sh
+cargo build --release --target aarch64-apple-darwin
+
+# Stage the C header + modulemap the xcframework needs.
+mkdir -p ../ios/build/xc/macos/headers
+cp generated/swift/unfydqryFFI.h ../ios/build/xc/macos/headers/
+cat > ../ios/build/xc/macos/headers/module.modulemap <<'EOF'
+module unfydqryFFI {
+    header "unfydqryFFI.h"
+    export *
+}
+EOF
+cp target/aarch64-apple-darwin/release/libunfydqry.a ../ios/build/xc/macos/libunfydqry.a
+
+cd ..
+rm -rf ios/UnifiedQuery.xcframework
+xcodebuild -create-xcframework \
+  -library ios/build/xc/macos/libunfydqry.a \
+  -headers ios/build/xc/macos/headers \
+  -output ios/UnifiedQuery.xcframework
+```
+
+For a shippable framework, repeat the Rust build + `-library`/`-headers` pair
+for each device/simulator target (`aarch64-apple-ios`,
+`aarch64-apple-ios-sim`, `x86_64-apple-ios`) and pass them all to a single
+`-create-xcframework` invocation.
+
+Finally, copy the result into the plugin's pod root so CocoaPods can vendor it
+(see "Native-artifact packaging" below):
+
+```sh
+cp -R ios/UnifiedQuery.xcframework flutter/ios/UnifiedQuery.xcframework
 ```
 
 **Android `.so` files**:
@@ -107,7 +172,7 @@ ANDROID_NDK_HOME=/path/to/ndk cargo ndk \
 ```sh
 # Dart unit tests (mock method channel, no native artifacts required)
 cd flutter
-flutter test                     # 11 cases
+flutter test                     # 13 cases
 
 # Sample app (native artifacts must be built first)
 cd flutter/example

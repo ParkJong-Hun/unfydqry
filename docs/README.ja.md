@@ -103,7 +103,9 @@ cargo run --bin uniffi-bindgen -- generate \
   --library target/aarch64-apple-ios/release/libunfydqry.a \
   --language swift --out-dir generated/swift
 
-# 上の手順を含めた XCFramework 作成スクリプトは scripts/build-xcframework.sh 想定
+# 静的ライブラリを ios/UnifiedQuery.xcframework にまとめるには
+# `xcodebuild -create-xcframework` を使う（正確なコマンドは
+# docs/flutter-plugin.md「Building native artifacts」を参照）。
 cd ..
 
 # テスト

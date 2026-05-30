@@ -2,7 +2,7 @@ name: Flutter Tests
 
 on:
   push:
-    branches: [feat/flutter]
+    branches: [main, feat/flutter]
     paths:
       - "flutter/**"
       - ".github/workflows/flutter-tests.yml"
@@ -22,9 +22,10 @@ jobs:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
       - name: Set up Flutter
-        uses: subosito/flutter-action@v2
+        uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2.23.0
         with:
           channel: stable
+          cache: true
 
       - name: Show Flutter version
         run: flutter --version
@@ -35,7 +36,7 @@ jobs:
 
       - name: flutter test
         working-directory: flutter
-        run: flutter test --reporter expanded    # 11 cases (mock method channel)
+        run: flutter test --reporter expanded    # 13 cases (mock method channel)
 
       - name: Upload test output on failure
         if: failure()

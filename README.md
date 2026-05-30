@@ -106,8 +106,9 @@ cargo run --bin uniffi-bindgen -- generate \
   --library target/aarch64-apple-ios/release/libunfydqry.a \
   --language swift --out-dir generated/swift
 
-# An end-to-end script that bundles the above into a fat XCFramework
-# would live at scripts/build-xcframework.sh.
+# Bundle the static libs into ios/UnifiedQuery.xcframework with
+# `xcodebuild -create-xcframework` — see docs/flutter-plugin.md
+# ("Building native artifacts") for the exact invocation.
 cd ..
 
 # Tests
