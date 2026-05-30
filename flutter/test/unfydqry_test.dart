@@ -130,6 +130,42 @@ void main() {
       await engine.dispose();
       expect(log.last.method, 'dispose');
     });
+
+    test('is idempotent — second dispose is a no-op', () async {
+      final engine = await SearchEngine.open('/tmp/db.sqlite');
+      await engine.dispose();
+      log.clear();
+      await engine.dispose();
+      expect(log, isEmpty);
+    });
+
+    test('methods after dispose throw StateError', () async {
+      final engine = await SearchEngine.open('/tmp/db.sqlite');
+      await engine.dispose();
+      expect(() => engine.index(1, 't'), throwsStateError);
+      expect(() => engine.remove(1), throwsStateError);
+      expect(() => engine.search('q'), throwsStateError);
+    });
+  });
+
+  group('SearchEngine.search malformed payload', () {
+    test('wraps a bad hit shape as SearchException', () async {
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(
+        const MethodChannel('unfydqry/search'),
+        (call) async => call.method == 'open'
+            ? 0
+            : [
+                {'id': 'not-a-number'},
+              ],
+      );
+
+      final engine = await SearchEngine.open('/tmp/db.sqlite');
+      await expectLater(
+        engine.search('q'),
+        throwsA(isA<SearchException>()),
+      );
+    });
   });
 
   group('Multiple engines', () {
