@@ -119,39 +119,15 @@ the migration point is flagged in `flutter/ios/unfydqry.podspec`.
 **iOS XCFramework**:
 
 The canonical artifact is `<repo>/ios/UnifiedQuery.xcframework` — the same one
-the native iOS binding ships. The assembly steps live in
-[`.github/workflows/swift-tests.yml`](../.github/workflows/swift-tests.yml)
-(the "Assemble … XCFramework" step); reproduced here for a single macOS slice:
+the native iOS binding ships. Build it with the repo's helper script, which
+compiles all four Apple targets, regenerates the Swift binding, and assembles
+the fat XCFramework (also zipping it + emitting the SwiftPM checksum):
 
 ```sh
-cd core
-cargo build --release --target aarch64-apple-darwin
-
-# Stage the C header + modulemap the xcframework needs.
-mkdir -p ../ios/build/xc/macos/headers
-cp generated/swift/unfydqryFFI.h ../ios/build/xc/macos/headers/
-cat > ../ios/build/xc/macos/headers/module.modulemap <<'EOF'
-module unfydqryFFI {
-    header "unfydqryFFI.h"
-    export *
-}
-EOF
-cp target/aarch64-apple-darwin/release/libunfydqry.a ../ios/build/xc/macos/libunfydqry.a
-
-cd ..
-rm -rf ios/UnifiedQuery.xcframework
-xcodebuild -create-xcframework \
-  -library ios/build/xc/macos/libunfydqry.a \
-  -headers ios/build/xc/macos/headers \
-  -output ios/UnifiedQuery.xcframework
+bash scripts/build-xcframework.sh
 ```
 
-For a shippable framework, repeat the Rust build + `-library`/`-headers` pair
-for each device/simulator target (`aarch64-apple-ios`,
-`aarch64-apple-ios-sim`, `x86_64-apple-ios`) and pass them all to a single
-`-create-xcframework` invocation.
-
-Finally, copy the result into the plugin's pod root so CocoaPods can vendor it
+Then copy the result into the plugin's pod root so CocoaPods can vendor it
 (see "Native-artifact packaging" below):
 
 ```sh
